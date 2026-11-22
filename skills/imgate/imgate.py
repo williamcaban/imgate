@@ -99,8 +99,8 @@ style       = "openrouter"
 base_url    = "https://openrouter.ai/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
 model       = "black-forest-labs/flux.2-pro"   # verify with: imgate.py models
-# ref_shape = "string"      # how input_references/markup entries are encoded. If OpenRouter rejects
-#                           # them, try "image_url" ({"type":"image_url","image_url":{"url":...}}).
+# ref_shape = "image_url"   # default: {"type":"image_url","image_url":{"url":...}} per OpenRouter docs.
+#                           # "string" sends bare URLs, which live OpenRouter rejects with HTTP 400.
 
 # Self-hosted vLLM-Omni: `vllm serve Qwen/Qwen-Image --omni --port 8000` (one model per server)
 [profiles.vllm-omni]
@@ -275,6 +275,8 @@ def load_config(path: str | None = None) -> dict:
             raise ImgateError(f"Profile '{name}': style must be 'openrouter' or 'openai'.")
         if not prof.get("base_url"):
             raise ImgateError(f"Profile '{name}': base_url is required.")
+        if prof.get("ref_shape", "image_url") not in ("image_url", "string"):
+            raise ImgateError(f"Profile '{name}': ref_shape must be 'image_url' or 'string'.")
     return cfg
 
 
@@ -483,6 +485,18 @@ def _sig_params(fn) -> set[str]:
         return set()
 
 
+def ref_entry(prof: dict, url: str):
+    """Encode one reference or markup entry for OpenRouter.
+
+    OpenRouter requires {"type": "image_url", "image_url": {"url": ...}}. A plain string is rejected with
+    HTTP 400 ("expected object, received string"; checked live 2026-11-22 for input_references and markup).
+    `ref_shape = "string"` on a profile keeps the old behavior for an endpoint that wants it.
+    """
+    if prof.get("ref_shape", "image_url") == "string":
+        return url
+    return {"type": "image_url", "image_url": {"url": url}}
+
+
 def plan_view(plan: dict) -> dict:
     """What will be sent, with reference contents redacted. Used for dry-run and sidecars."""
     prof = plan["prof"]
@@ -492,9 +506,9 @@ def plan_view(plan: dict) -> dict:
         if plan["provider"]:
             body["provider"] = plan["provider"]
         if refs:
-            body["input_references"] = refs
+            body["input_references"] = [ref_entry(prof, r) for r in refs]
         if plan["mask"]:
-            body["markup"] = "<data-url>" if plan["mask"].startswith("data:") else plan["mask"]
+            body["markup"] = ref_entry(prof, "<data-url>" if plan["mask"].startswith("data:") else plan["mask"])
         deep_merge(body, plan["extra"])
         endpoint = "POST /images"
     else:
@@ -515,11 +529,10 @@ def call_api(plan: dict) -> dict:
         body = {"model": plan["model"], "prompt": plan["prompt"], **plan["params"]}
         if plan["provider"]:
             body["provider"] = plan["provider"]
-        shape = (lambda u: {"type": "image_url", "image_url": {"url": u}}) if prof.get("ref_shape") == "image_url" else (lambda u: u)
         if plan["refs"]:
-            body["input_references"] = [shape(ref_as_input(cfg, r)) for r in plan["refs"]]
+            body["input_references"] = [ref_entry(prof, ref_as_input(cfg, r)) for r in plan["refs"]]
         if plan["mask"]:
-            body["markup"] = shape(ref_as_input(cfg, plan["mask"]))
+            body["markup"] = ref_entry(prof, ref_as_input(cfg, plan["mask"]))
         deep_merge(body, plan["extra"])
         return wrap_api_errors(lambda: client.post("/images", cast_to=object, body=body), prof, cfg["timeout"])
     # style = openai

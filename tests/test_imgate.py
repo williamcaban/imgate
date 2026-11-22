@@ -41,6 +41,16 @@ class H(BaseHTTPRequestHandler):
         SEEN.append((self.path, {k.lower(): v for k, v in self.headers.items()}, raw))
         if self.path in ("/api/v1/images", "/v1/images/generations"):
             body = json.loads(raw)
+            if self.path == "/api/v1/images":  # live OpenRouter (2026-11-22): entries must be objects, not strings
+                for field in ("input_references", "markup"):
+                    entries = body.get(field)
+                    entries = [entries] if field == "markup" and entries is not None else entries or []
+                    for i, e in enumerate(entries):
+                        if not isinstance(e, dict):
+                            where = ["input_references", i] if field == "input_references" else ["markup"]
+                            issue = {"expected": "object", "code": "invalid_type", "path": where,
+                                     "message": "Invalid input: expected object, received string"}
+                            return self._send(400, {"error": {"message": json.dumps([issue])}})
             if body["prompt"].startswith("FAIL502") and FAIL_ONCE["left"]:
                 FAIL_ONCE["left"] -= 1
                 return self._send(502, {"error": {"message": "upstream failed"}})
@@ -88,6 +98,12 @@ base_url = "http://127.0.0.1:{PORT}/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
 model = "black-forest-labs/flux.2-pro"
 ref_shape = "image_url"
+[profiles.orstr]
+style = "openrouter"
+base_url = "http://127.0.0.1:{PORT}/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+model = "black-forest-labs/flux.2-pro"
+ref_shape = "string"
 [profiles.lan]
 style = "openai"
 base_url = "http://192.0.2.1:9/v1"
@@ -128,7 +144,8 @@ ok(p and Path(str(p) + ".json").is_file() and "test-dir" in str(p), "sidecar + s
 path, hdr, raw = last("/api/v1/images"); b = json.loads(raw)
 ok(hdr.get("authorization") == f"Bearer {KEY}" and hdr.get("x-title") == "imgate", "OR auth + X-Title headers")
 ok(b["prompt"] == "a manger, cinematic" and b["aspect_ratio"] == "16:9" and b["seed"] == 7, "preset+seed merged")
-ok(b["provider"] == {"zdr": True} and b["input_references"][0].startswith("data:image/png;base64,"), "provider + local ref -> data url")
+ok(b["provider"] == {"zdr": True} and b["input_references"][0]["image_url"]["url"].startswith("data:image/png;base64,"), "provider + local ref -> data url in object entry")
+ok(b["input_references"][0]["type"] == "image_url", "default ref shape is the object form OpenRouter requires")
 ok("organization" not in set(hdr) and "openai-organization" not in set(hdr), "no org header leak")
 side = Path(str(p) + ".json").read_text()
 ok(KEY not in side and "base64" not in side and "ref.png" in side, "sidecar: no key, no image bytes")
@@ -188,10 +205,21 @@ r = run("generate", "a calm lake at dawn", "--dry-run"); ok("warning" not in r.s
 
 r = run("generate", "edit", "--ref", str(ref), "--mask", str(mask1))
 ok(r.returncode == 0, f"OR mask generate ({r.stderr.strip()[:200]})")
-b = json.loads(last("/api/v1/images")[2]); ok(b["markup"].startswith("data:image/png;base64,") and isinstance(b["input_references"][0], str), "OR mask -> markup (string shape)")
+b = json.loads(last("/api/v1/images")[2]); ok(b["markup"]["image_url"]["url"].startswith("data:image/png;base64,") and isinstance(b["input_references"][0], dict), "OR mask -> markup (object shape, default)")
 r = run("generate", "edit", "-P", "or2", "--ref", str(ref), "--mask", str(mask1))
 b = json.loads(last("/api/v1/images")[2])
 ok(b["input_references"][0]["image_url"]["url"].startswith("data:") and b["markup"]["type"] == "image_url", "ref_shape=image_url wraps refs and markup")
+r = run("generate", "edit", "-P", "orstr", "--ref", str(ref))
+ok(r.returncode == 1 and "expected object, received string" in r.stderr, "ref_shape=string opt-in reproduces the live HTTP 400")
+r = run("generate", "edit", "-P", "orstr", "--ref", str(ref), "--mask", str(mask1), "--dry-run")
+d = json.loads(r.stdout)["request"]["body"]
+ok(isinstance(d["input_references"][0], str) and isinstance(d["markup"], str), "dry-run mirrors ref_shape=string")
+r = run("generate", "edit", "--ref", str(ref), "--mask", str(mask1), "--dry-run")
+d = json.loads(r.stdout)["request"]["body"]
+ok(d["input_references"][0]["type"] == "image_url" and d["markup"]["type"] == "image_url" and d["markup"]["image_url"]["url"].endswith("mask1.png"), "dry-run shows object entries for refs and markup")
+(tmp / "badshape.toml").write_text('[profiles.openrouter]\nstyle = "openrouter"\nbase_url = "http://x/v1"\nref_shape = "nope"\n')
+r = run("--config", str(tmp / "badshape.toml"), "generate", "x", "--dry-run")
+ok(r.returncode == 1 and "ref_shape must be" in r.stderr, "invalid ref_shape rejected")
 r = run("generate", "edit", "-P", "vllm", "--ref", str(ref), "--mask", str(mask1))
 ok(r.returncode == 0 and b'name="mask"' in last("/v1/images/edits")[2], f"openai-style mask multipart ({r.stderr.strip()[:150]})")
 r = run("generate", "edit", "--ref", str(ref), "--mask", str(mask2)); ok(r.returncode == 1 and "must equal" in r.stderr, "mask size mismatch rejected")
