@@ -39,6 +39,10 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         raw = self.rfile.read(int(self.headers["Content-Length"]))
         SEEN.append((self.path, {k.lower(): v for k, v in self.headers.items()}, raw))
+        if self.path.startswith("/noimg/"):  # Ollama (Gin) answers a missing route with plain text
+            b = b"404 page not found"
+            self.send_response(404); self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(b))); self.end_headers(); return self.wfile.write(b)
         if self.path in ("/api/v1/images", "/v1/images/generations"):
             body = json.loads(raw)
             if self.path == "/api/v1/images":  # live OpenRouter (2026-11-22): entries must be objects, not strings
@@ -104,6 +108,10 @@ base_url = "http://127.0.0.1:{PORT}/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
 model = "black-forest-labs/flux.2-pro"
 ref_shape = "string"
+[profiles.noimg]
+style = "openai"
+base_url = "http://127.0.0.1:{PORT}/noimg/v1"
+model = "x"
 [profiles.lan]
 style = "openai"
 base_url = "http://192.0.2.1:9/v1"
@@ -168,6 +176,11 @@ r = run("generate", "a cat", "-P", "vllm", "--response-format", "url"); ok(r.ret
 r = run("generate", "edit it", "-p", "local", "--ref", str(ref), "--seed", "3")
 path, hdr, raw = last("/v1/images/edits")
 ok(r.returncode == 0 and "multipart/form-data" in hdr.get("content-type", "") and b'name="image"' in raw and b'name="seed"' in raw, f"edits via multipart ({r.stderr.strip()[:200]})")
+r = run("generate", "a cat", "-P", "noimg")
+ok(r.returncode == 1 and "/noimg/v1/images/generations does not exist" in r.stderr and "Error code: 404" not in r.stderr, "plain-text 404 explains the missing images route")
+r = run("generate", "a cat", "-P", "noimg", "--ref", str(ref))
+ok(r.returncode == 1 and "/images/edits does not exist" in r.stderr, "same hint for the edits route")
+r = run("init", "--print"); ok("[profiles.ollama]" not in r.stdout.replace("# [profiles.ollama]", ""), "example config no longer enables the Ollama profile")
 r = run("models", "-P", "vllm"); ok("Qwen/Qwen-Image" in r.stdout, "openai-style models list")
 r = run("generate", "x", "-P", "vllm", "--zdr"); ok(r.returncode == 1 and "style=openrouter" in r.stderr, "provider routing rejected on openai style")
 r = run("generate", "x", "-P", "lan"); ok(r.returncode == 1 and "plain http" in r.stderr and "lan-secret" not in r.stderr, "key over non-loopback http refused")
