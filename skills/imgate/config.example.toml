@@ -1,0 +1,72 @@
+# imgate config. Lookup: $IMGATE_CONFIG, ./imgate.toml, ~/.config/imgate/config.toml
+# API keys are NEVER stored here. A profile names the environment variable that holds its key.
+
+default_profile = "openrouter"      # or set IMGATE_PROFILE / use -P
+output_dir      = "~/imgate-output"
+timeout         = 300
+max_retries     = 1
+app_title       = "imgate"           # X-Title header (OpenRouter app attribution)
+app_url         = ""                # HTTP-Referer header if set
+lint_prompt     = true              # warn when a prompt contains negations (models may render the named thing)
+max_batch       = 20                # max jobs per `batch` run
+
+[defaults]                          # sent on every request, all profiles
+# seed = 42
+
+[provider]                          # OpenRouter provider routing (style = "openrouter" only)
+# allow_fallbacks = false
+# data_collection = "deny"
+# zdr = true
+
+# ---------------------------------------------------------------- profiles
+[profiles.openrouter]
+style       = "openrouter"
+base_url    = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+model       = "black-forest-labs/flux.2-pro"   # verify with: imgate.py models
+# ref_shape = "string"      # how input_references/markup entries are encoded. If OpenRouter rejects
+#                           # them, try "image_url" ({"type":"image_url","image_url":{"url":...}}).
+
+# Self-hosted vLLM-Omni: `vllm serve Qwen/Qwen-Image --omni --port 8000` (one model per server)
+[profiles.vllm-omni]
+style    = "openai"
+base_url = "http://localhost:8000/v1"
+model    = "Qwen/Qwen-Image"
+# api_key_env = "VLLM_API_KEY"      # only if the server was started with --api-key
+# [profiles.vllm-omni.extra]        # sent on every request (provider-specific fields)
+# num_inference_steps = 30
+
+# Ollama (image generation is experimental and model dependent)
+[profiles.ollama]
+style    = "openai"
+base_url = "http://localhost:11434/v1"
+model    = "z-image"
+
+# OpenAI itself
+# [profiles.openai]
+# style       = "openai"
+# base_url    = "https://api.openai.com/v1"
+# api_key_env = "OPENAI_API_KEY"
+# model       = "gpt-image-1"
+
+# A key is only ever sent over https, or over http to localhost. For a LAN server that needs a
+# key over plain http, set allow_insecure = true on that profile (you accept the exposure).
+
+[mcp]
+inline_images    = true
+max_inline_bytes = 1000000
+allowed_profiles = []               # e.g. ["openrouter", "vllm-omni"]
+allowed_models   = []               # e.g. ["black-forest-labs/flux.2-pro"] as a cost guard
+max_n            = 4
+reference_dirs   = []               # dirs the MCP tool may read reference images from
+
+# Presets: named bundles. Use with -p NAME (CLI) or "preset" (MCP). A preset may pin a profile.
+[presets.cinematic]
+prompt_suffix = ", cinematic lighting, shallow depth of field, photorealistic"
+[presets.cinematic.params]
+aspect_ratio = "16:9"               # style=openai servers receive this as an extra field
+
+[presets.local-draft]
+profile = "vllm-omni"
+[presets.local-draft.params]
+size = "1024x1024"

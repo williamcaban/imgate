@@ -1,0 +1,18 @@
+[project]
+name = "imgate"
+version = "0.4.0"
+description = "One gateway to many image-generation endpoints: OpenRouter, vLLM-Omni, Ollama, OpenAI-compatible servers"
+requires-python = ">=3.12"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = [
+    "openai>=1.50",
+]
+
+[tool.uv]
+package = false  # a script and skill, not an installable package
+
+[dependency-groups]
+dev = [
+    "ruff>=0.17.6",
+]
