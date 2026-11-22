@@ -345,7 +345,8 @@ def resolve_key(prof: dict) -> str:
     if required and not val:
         raise ImgateError(
             f"{env or 'An API key variable'} is not set (profile '{prof['name']}'). Export it in the "
-            "environment that launches this tool (for Claude Desktop, use the MCP server's `env` block)."
+            "environment that launches this tool (for Claude Desktop, the MCP server's `env` block, or a launcher "
+            "that reads the macOS Keychain: see docs/claude-desktop.md)."
         )
     if val:
         _SECRETS.add(val)
@@ -798,8 +799,9 @@ def list_models(cfg: dict, profile: str | None = None, filt: str | None = None) 
 
 
 def profile_summary(cfg: dict) -> list[dict]:
+    default = os.environ.get("IMGATE_PROFILE") or cfg["default_profile"]
     return [{"name": n, "style": p["style"], "base_url": p["base_url"], "model": p.get("model"),
-             "api_key_env": p.get("api_key_env") or None, "default": n == cfg["default_profile"]}
+             "api_key_env": p.get("api_key_env") or None, "default": n == default}
             for n, p in cfg["profiles"].items()]
 
 

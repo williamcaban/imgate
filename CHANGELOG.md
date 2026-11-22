@@ -11,6 +11,7 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor
   `list_profiles` shows only those. An unknown name is a startup error. Used to run one connector for the free
   local profile and another for OpenRouter, so the host's approval prompt can guard the paid one. See
   `docs/claude-desktop.md`.
+- `list_profiles` marks the `IMGATE_PROFILE` default, and the missing-key error mentions the Keychain launcher.
 - The MCP instructions and SKILL.md say to use the default profile and to use a billing profile only when the
   user names it.
 

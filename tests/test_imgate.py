@@ -428,6 +428,7 @@ by2, _ = mcp_env({"IMGATE_MCP_ALLOWED_PROFILES": "vllm", "IMGATE_PROFILE": "vllm
     call(4, "generate_image", {"prompt": "paid", "profile": "openrouter"}), call(5, "list_image_models", {"profile": "openrouter"})])
 names = [x["name"] for x in json.loads(by2[2]["result"]["content"][0]["text"])]
 ok(names == ["vllm"], f"env-restricted connector lists only its profile ({names})")
+ok(json.loads(by2[2]["result"]["content"][0]["text"])[0]["default"] is True, "list_profiles marks the IMGATE_PROFILE default")
 ok(not by2[3]["result"].get("isError") and json.loads(by2[3]["result"]["content"][0]["text"])["profile"] == "vllm", "default profile from IMGATE_PROFILE works")
 ok(by2[4]["result"]["isError"] and "allowed_profiles" in by2[4]["result"]["content"][0]["text"], "a profile outside the env allow-list is refused, no API call")
 ok(by2[5]["result"]["isError"] and "allowed_profiles" in by2[5]["result"]["content"][0]["text"], "list_image_models is refused for a profile outside the allow-list")
