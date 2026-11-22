@@ -30,7 +30,8 @@ README under "Verification status".
   send bare URLs again.
 - The dry-run view and sidecars show reference and markup entries in the same shape that is sent.
 - The built-in example config no longer enables an `ollama` profile. Ollama has no `/v1/images/*` routes
-  (404 on 0.40.17), and its old default model name `z-image` is not an Ollama registry name. A config written
+  (404 on 0.40.17; `ollama run x/flux2-klein` also fails with "image generation models are not currently
+  supported"), and its old default model name `z-image` is not an Ollama registry name. A config written
   by 0.4.0 `init` still has that profile; delete it.
 - `ruff check` passes with ruff's default rules; the script is marked executable.
 - README: dated lists of what was verified live, what comes from primary sources, and what is unverified.

@@ -119,7 +119,7 @@ model    = "Qwen/Qwen-Image"
 # [profiles.ollama]
 # style    = "openai"
 # base_url = "http://localhost:11434/v1"
-# model    = "x/z-image-turbo"      # registry name; macOS only; unverified against an images route
+# model    = "x/z-image-turbo"      # registry name; `ollama run` on it fails: image models unsupported
 
 # OpenAI itself
 # [profiles.openai]

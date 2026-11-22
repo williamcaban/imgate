@@ -101,7 +101,10 @@ Checked live (OpenRouter, model `black-forest-labs/flux-3-image-klein` unless no
 - Ollama 0.40.17: `POST /v1/images/generations` and `/v1/images/edits` return a plain-text 404 (the same
   fake model on `/v1/chat/completions` returns a JSON error, so the server is up). Ollama's source on `main`
   registers no such routes and its OpenAI-compatibility page lists none. Ollama's registry has image models
-  (`x/z-image-turbo`, macOS only), but they are not reachable through an images route.
+  (`x/z-image-turbo`, `x/flux2-klein`), and their registry page says they work on macOS, but they do not run:
+  `ollama run x/flux2-klein` fails with `Error: image generation models are not currently supported` (reported
+  on a Mac, 2026-11-22). That is the same string Ollama's `/api/generate` handler returns for image-capability
+  models in its source on `main`, and the images routes do not exist either.
 
 Taken from primary sources, not tested live:
 
