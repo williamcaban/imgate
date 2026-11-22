@@ -1,0 +1,30 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.13"]
+    env:
+      # The repo pins .python-version to 3.12. UV_PYTHON overrides it for every uv command in the job,
+      # so `uv run` does not rebuild the environment on 3.12 and the 3.13 leg tests 3.13.
+      UV_PYTHON: ${{ matrix.python }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Tests (offline, mock servers on localhost)
+        run: uv run python tests/test_imgate.py
+      - name: Lint
+        run: uv run ruff check
