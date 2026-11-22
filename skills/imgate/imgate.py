@@ -108,6 +108,8 @@ style    = "openai"
 base_url = "http://localhost:8000/v1"
 model    = "Qwen/Qwen-Image"
 # api_key_env = "VLLM_API_KEY"      # only if the server was started with --api-key
+# mask_field = "mask_image"         # vLLM-Omni's /v1/images/edits reads the mask from `mask_image`, not
+#                                   # OpenAI's `mask`. From its source; unverified against a live server.
 # [profiles.vllm-omni.extra]        # sent on every request (provider-specific fields)
 # num_inference_steps = 30
 
@@ -277,6 +279,8 @@ def load_config(path: str | None = None) -> dict:
             raise ImgateError(f"Profile '{name}': style must be 'openrouter' or 'openai'.")
         if not prof.get("base_url"):
             raise ImgateError(f"Profile '{name}': base_url is required.")
+        if not isinstance(prof.get("mask_field", "mask"), str) or not prof.get("mask_field", "mask"):
+            raise ImgateError(f"Profile '{name}': mask_field must be a non-empty string.")
         if prof.get("ref_shape", "image_url") not in ("image_url", "string"):
             raise ImgateError(f"Profile '{name}': ref_shape must be 'image_url' or 'string'.")
     return cfg
@@ -524,7 +528,7 @@ def plan_view(plan: dict) -> dict:
         if refs:
             body["image"] = refs
         if plan["mask"]:
-            body["mask"] = "<data-url>" if plan["mask"].startswith("data:") else plan["mask"]
+            body[prof.get("mask_field", "mask")] = "<data-url>" if plan["mask"].startswith("data:") else plan["mask"]
         endpoint = "POST /images/edits" if refs else "POST /images/generations"
     return {"profile": prof["name"], "style": prof["style"], "base_url": prof["base_url"],
             "endpoint": endpoint, "body": body}
@@ -550,12 +554,17 @@ def call_api(plan: dict) -> dict:
     extra_body = dict(plan["extra"])
     for k, v in plan["params"].items():
         (kwargs if k in known else extra_body)[k] = v
+    mask_field = prof.get("mask_field", "mask")
+    if plan["mask"] and mask_field != "mask":
+        # Server names the edit mask differently (vLLM-Omni reads `mask_image`). Sent as a form field
+        # holding a URL or data URL, because the SDK's own `mask` file part would be ignored there.
+        extra_body[mask_field] = ref_as_input(cfg, plan["mask"])
     if extra_body:
         kwargs["extra_body"] = extra_body
     if plan["refs"]:
         files = [ref_bytes(cfg, r) for r in plan["refs"]]
         kwargs["image"] = files if len(files) > 1 else files[0]
-        if plan["mask"]:
+        if plan["mask"] and mask_field == "mask":
             kwargs["mask"] = ref_bytes(cfg, plan["mask"])
     resp = wrap_api_errors(lambda: fn(**kwargs), prof, cfg["timeout"])
     return resp.model_dump(exclude_none=True) if hasattr(resp, "model_dump") else dict(resp)

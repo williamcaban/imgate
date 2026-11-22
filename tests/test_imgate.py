@@ -108,6 +108,11 @@ base_url = "http://127.0.0.1:{PORT}/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
 model = "black-forest-labs/flux.2-pro"
 ref_shape = "string"
+[profiles.vmask]
+style = "openai"
+base_url = "http://127.0.0.1:{PORT}/v1"
+model = "Qwen/Qwen-Image-Edit-2511"
+mask_field = "mask_image"
 [profiles.noimg]
 style = "openai"
 base_url = "http://127.0.0.1:{PORT}/noimg/v1"
@@ -235,6 +240,11 @@ r = run("--config", str(tmp / "badshape.toml"), "generate", "x", "--dry-run")
 ok(r.returncode == 1 and "ref_shape must be" in r.stderr, "invalid ref_shape rejected")
 r = run("generate", "edit", "-P", "vllm", "--ref", str(ref), "--mask", str(mask1))
 ok(r.returncode == 0 and b'name="mask"' in last("/v1/images/edits")[2], f"openai-style mask multipart ({r.stderr.strip()[:150]})")
+r = run("generate", "edit", "-P", "vmask", "--ref", str(ref), "--mask", str(mask1))
+raw = last("/v1/images/edits")[2]
+ok(r.returncode == 0 and b'name="mask_image"' in raw and b'name="mask"' not in raw and b"data:image/png;base64," in raw, f"mask_field sends the mask as a mask_image form field ({r.stderr.strip()[:120]})")
+r = run("generate", "edit", "-P", "vmask", "--ref", str(ref), "--mask", str(mask1), "--dry-run")
+ok("mask_image" in json.loads(r.stdout)["request"]["body"] and "mask" not in json.loads(r.stdout)["request"]["body"], "dry-run shows the configured mask field")
 r = run("generate", "edit", "--ref", str(ref), "--mask", str(mask2)); ok(r.returncode == 1 and "must equal" in r.stderr, "mask size mismatch rejected")
 r = run("generate", "edit", "--mask", str(mask1)); ok(r.returncode == 1 and "needs at least one reference" in r.stderr, "mask without ref rejected")
 (tmp / "notpng.png").write_bytes(b"GIF89a....")
