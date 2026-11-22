@@ -102,18 +102,6 @@ Checked live (OpenRouter, model `black-forest-labs/flux-3-image-klein` unless no
   is the opposite of OpenAI's `mask`. The model re-renders the whole picture, so it is guidance, not a
   pixel-exact inpaint. Two trials on one model is not a convention.
 
-Checked live on a Mac (stable-diffusion.cpp `sd-server` build master-1106-532d2c1, FLUX.2 klein 4B):
-
-- `GET /v1/models`, `POST /v1/images/generations` and `POST /v1/images/edits` work through imgate. The prebuilt
-  macOS binary runs on the Metal GPU (the server log shows the `MTL0` device).
-- The server reads only `prompt`, `n`, `size`, `output_format` and `output_compression` as top-level fields.
-  imgate's `--seed` was silently dropped (log: a random seed, not 7). Fixed with `extra_in_prompt = true`:
-  `seed` and `--set` fields travel as `<sd_cpp_extra_args>{json}</sd_cpp_extra_args>` in the prompt. Two runs
-  with the same seed gave byte-identical PNGs.
-- A reference edit works (sky changed, boat kept). About 40 s for a 768x768 text-to-image and 85 s for an edit
-  on a 64 GB Apple silicon Mac, with the default 4 steps.
-- Not tested there: `mask`, and imgate fields the server does not list (`aspect_ratio`, `quality`, `background`).
-
 Checked live against the Draw Things app (HTTP API server on `127.0.0.1:7860`, FLUX.2 klein 4B q8 selected in
 the app, `sdapi` style):
 
@@ -162,24 +150,6 @@ Edit `~/.config/imgate/config.toml` to point `[profiles.vllm-omni]` at your serv
 
 To keep the repo as the source of truth, symlink instead of copying:
 `ln -sfn "$PWD/skills/imgate" ~/.claude/skills/imgate`. Claude Code follows the link.
-
-## Local FLUX.2 klein on a Mac (stable-diffusion.cpp)
-
-No Homebrew formula exists, but the project publishes a prebuilt macOS binary with Metal. All files below are
-Apache-2.0 and need no Hugging Face login (16 GB in total).
-
-    gh release download master-1106-532d2c1 -R leejet/stable-diffusion.cpp -p '*Darwin*arm64.zip'   # then unzip
-    R=https://huggingface.co/Comfy-Org/flux2-klein-4B/resolve/main/split_files
-    curl -L -C - -o flux2_ae.safetensors            $R/vae/flux2-vae.safetensors                          # 0.34 GB
-    curl -L -C - -o flux-2-klein-4b.safetensors     $R/diffusion_models/flux-2-klein-4b.safetensors       # 7.75 GB
-    curl -L -C - -o qwen_3_4b.safetensors           $R/text_encoders/qwen_3_4b.safetensors                # 8.04 GB
-    ./sd-server --listen-ip 127.0.0.1 --listen-port 1234 --model-dir . \
-      --diffusion-model flux-2-klein-4b.safetensors --vae flux2_ae.safetensors --llm qwen_3_4b.safetensors \
-      --cfg-scale 1.0 --steps 4
-
-Then add the profile from `imgate.py init --print` (`[profiles.sdcpp]`, with `extra_in_prompt = true`) and run
-`imgate.py generate "..." -P sdcpp --size 768x768 --seed 7`. The binary is unsigned and universal; it is not
-managed by Homebrew, so new releases are manual downloads.
 
 ## Draw Things (macOS app)
 
@@ -248,6 +218,10 @@ Prompting guidance in `references/prompting.md` is adapted from the MIT-licensed
     uv sync                                  # Python 3.12 + openai + ruff
     uv run python tests/test_imgate.py       # offline tests
     uv run ruff check skills tests
+
+## More documentation
+
+Setup notes for specific servers are in `docs/`.
 
 ## License
 

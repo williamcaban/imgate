@@ -20,7 +20,7 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor
   `extra_in_prompt = true`, `seed` and `--set`/`extra` fields are sent as a `<sd_cpp_extra_args>` block in the
   prompt. Checked live: the same seed gives byte-identical images. A prompt that already holds such a block
   plus `--seed` or `--set` is an error.
-- README section for running FLUX.2 klein 4B locally on a Mac with the prebuilt `sd-server` (Metal).
+- `docs/stable-diffusion-cpp.md`: running FLUX.2 klein 4B locally on a Mac with the prebuilt `sd-server` (Metal).
 
 ## 0.5.0 - 2026-11-22
 
