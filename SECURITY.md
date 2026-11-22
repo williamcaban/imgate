@@ -23,6 +23,16 @@ nothing else from the repo.
 To accept a finding that has no fix, use `--ignore-until-fixed ID` in both `.pre-commit-config.yaml` and
 `.github/workflows/security.yml`, and record the reason and the review date in the tracking issue.
 
+## Repository protection (public repo, set 2026-11-22)
+
+- `main` is protected: changes arrive by pull request from a `work/<slug>` branch, and the checks `test (3.12)`,
+  `test (3.13)` and `audit` must pass on a branch that is up to date with `main`. History stays linear (squash or
+  rebase merges), force-push and deletion are blocked, review conversations must be resolved, and the rules apply to
+  administrators too. No approving review is required because there is one maintainer.
+- Secret scanning with push protection, private vulnerability reporting and Dependabot security updates are on.
+- Hooks and CI are the gate for known vulnerabilities; branch protection is what stops a bypassed hook
+  (`--no-verify`) from reaching `main`.
+
 ## Local setup
 
     uvx pre-commit@4.7.0 install

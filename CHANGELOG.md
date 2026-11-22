@@ -11,6 +11,8 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor
   (every push, every PR, weekly) that opens or updates a `security`-labelled issue on a finding, and
   `.github/dependabot.yml` for `uv` and `github-actions`. `SECURITY.md` describes the tracking. No new
   dependency: `uv audit` ships with uv (experimental in 0.13.9, so CI pins that uv).
+- The repository is public. `main` is protected (pull request, required checks, linear history, no force-push or
+  deletion, administrators included); secret scanning with push protection and private vulnerability reporting are on.
 
 ### Changed
 
