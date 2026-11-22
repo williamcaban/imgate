@@ -38,7 +38,7 @@ import urllib.request
 from pathlib import Path
 from urllib.parse import urlparse
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 LOOPBACK = {"localhost", "127.0.0.1", "::1"}
 DEFAULTS: dict = {

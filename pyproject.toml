@@ -1,6 +1,6 @@
 [project]
 name = "imgate"
-version = "0.4.0"
+version = "0.5.0"
 description = "One gateway to many image-generation endpoints: OpenRouter, vLLM-Omni, Ollama, OpenAI-compatible servers"
 requires-python = ">=3.12"
 license = "Apache-2.0"
