@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import sys
 
-if sys.version_info < (3, 12):
+if sys.version_info < (3, 12):  # noqa: UP036 (friendly message when run by an old python3)
     sys.exit(f"imgate requires Python 3.12 or newer (this is {sys.version.split()[0]}).")
 
 import argparse
@@ -154,7 +154,7 @@ PARAM_KEYS = (
     "n", "size", "quality", "response_format", "output_format", "background",
     "output_compression", "resolution", "aspect_ratio", "seed", "frame_count", "frame_duration_ms",
 )
-_NEG = re.compile(r"\b(no|not|without|never|don't|dont|do not|avoid|avoiding|exclude|excluding|nothing|none)\b[^.,;\n]{0,40}", re.I)
+_NEG = re.compile(r"\b(no|not|without|never|don't|dont|do not|avoid|avoiding|exclude|excluding|nothing|none)\b[^.,;\n]{0,40}", re.IGNORECASE)
 
 
 def lint_prompt(prompt: str) -> list[str]:
@@ -164,15 +164,15 @@ def lint_prompt(prompt: str) -> list[str]:
     if not frags:
         return []
     shown = "; ".join(f'"{f}"' for f in frags)
-    return [f"Negation in prompt ({shown}). Image models may render the thing you name instead of "
-            "omitting it. Prefer saying what should be there (e.g. 'a single open book, alone'). Some "
-            "models accept --set negative_prompt=... but others (e.g. FLUX.2) do not; check the model docs."]
+    return [(f"Negation in prompt ({shown}). Image models may render the thing you name instead of "
+             "omitting it. Prefer saying what should be there (e.g. 'a single open book, alone'). Some "
+             "models accept --set negative_prompt=... but others (e.g. FLUX.2) do not; check the model docs.")]
 
 
-_STYLE = re.compile(r"\b(photo\w*|illustrat\w*|paint\w*|watercolou?r|oil|render\w*|3d|vector|sketch\w*|cinematic|anime|cartoon|pixel|diagram|infographic|logo|mockup|poster|film|35mm|realistic|stylized)\b", re.I)
-_FRAMING = re.compile(r"\b(close-?up|wide|macro|aerial|overhead|low-angle|high-angle|eye-level|portrait|shot|lens|\d+mm|framing|centered|foreground|background|composition|aspect|16:9|9:16|1:1|4:3)\b", re.I)
-_LIGHT = re.compile(r"\b(light\w*|lit|sunlight|sunset|sunrise|golden hour|candle\w*|neon|shadows?|backlit|glow\w*|overcast|studio|dusk|dawn|night|daylight)\b", re.I)
-_TEXTY = re.compile(r"\b(text|sign|signage|headline|title|caption|label|words?|lettering|banner|slogan)\b", re.I)
+_STYLE = re.compile(r"\b(photo\w*|illustrat\w*|paint\w*|watercolou?r|oil|render\w*|3d|vector|sketch\w*|cinematic|anime|cartoon|pixel|diagram|infographic|logo|mockup|poster|film|35mm|realistic|stylized)\b", re.IGNORECASE)
+_FRAMING = re.compile(r"\b(close-?up|wide|macro|aerial|overhead|low-angle|high-angle|eye-level|portrait|shot|lens|\d+mm|framing|centered|foreground|background|composition|aspect|16:9|9:16|1:1|4:3)\b", re.IGNORECASE)
+_LIGHT = re.compile(r"\b(light\w*|lit|sunlight|sunset|sunrise|golden hour|candle\w*|neon|shadows?|backlit|glow\w*|overcast|studio|dusk|dawn|night|daylight)\b", re.IGNORECASE)
+_TEXTY = re.compile(r"\b(text|sign|signage|headline|title|caption|label|words?|lettering|banner|slogan)\b", re.IGNORECASE)
 
 
 def check_prompt(prompt: str) -> dict:
@@ -266,7 +266,7 @@ def load_config(path: str | None = None) -> dict:
             try:
                 with p.open("rb") as fh:
                     deep_merge(cfg, tomllib.load(fh))
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 raise ImgateError(f"Bad config {p}: {e}") from e
             cfg["_path"] = str(p)
             break
@@ -412,7 +412,7 @@ def ref_as_input(cfg: dict, ref: str) -> str:
     """URL or base64 data URL for OpenRouter's input_references."""
     if ref.startswith(("https://", "http://", "data:")):
         return ref
-    name, data, mime = ref_bytes(cfg, ref)
+    _name, data, mime = ref_bytes(cfg, ref)
     return f"data:{mime};base64,{base64.b64encode(data).decode()}"
 
 

@@ -1,6 +1,12 @@
 """Offline tests with the real `openai` library against a localhost mock that imitates
 OpenRouter (/api/v1/images) and OpenAI-style servers (/v1/images/generations, /edits, /models)."""
-import base64, json, os, subprocess, sys, tempfile, threading
+import base64
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -102,7 +108,7 @@ ENV = {**os.environ, "OPENROUTER_API_KEY": KEY, "IMGATE_CONFIG": str(cfgp), "LAN
 
 
 def run(*args, inp=None, env=ENV):
-    return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, input=inp, env=env)
+    return subprocess.run([sys.executable, str(SCRIPT), *args], capture_output=True, text=True, input=inp, env=env, check=False)
 
 def ok(cond, msg):
     print(("PASS " if cond else "FAIL ") + msg)
@@ -157,12 +163,15 @@ ok(d["endpoint"] == "POST /images/edits" and d["body"]["num_inference_steps"] ==
 n = len(SEEN); r = run("generate", "", "--dry-run"); ok(r.returncode == 1 and "Empty prompt" in r.stderr, "empty prompt rejected")
 r = run("generate", "--prompt-file", "-", "--dry-run", inp="from stdin"); ok(json.loads(r.stdout)["request"]["body"]["prompt"] == "from stdin", "stdin prompt")
 r = subprocess.run([sys.executable, "-c", f"import sys,runpy; sys.modules['openai']=None; sys.argv=['imgate','models']; runpy.run_path(r'{SCRIPT}', run_name='__main__')"],
-                   capture_output=True, text=True, env=ENV)
+                   capture_output=True, text=True, env=ENV, check=False)
 ok("openai` package is not installed" in r.stderr, "friendly message when openai is missing")
 ok("requires-python = \">=3.12\"" in SCRIPT.read_text() and "sys.version_info < (3, 12)" in SCRIPT.read_text(), "3.12 gate present")
 
 # ---- lint, mask, ref_shape, batch
-import struct, zlib
+import struct
+import zlib
+
+
 def mkpng(w, h):
     raw = b"".join(b"\x00" + b"\xff\x00\x00\xff" * w for _ in range(h))
     ch = lambda t, d: struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xffffffff)
