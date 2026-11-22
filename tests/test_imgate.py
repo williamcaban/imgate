@@ -31,6 +31,8 @@ class H(BaseHTTPRequestHandler):
         if self.path == "/api/v1/images/models":
             return self._send(200, {"data": [{"id": "black-forest-labs/flux.2-pro", "name": "Flux 2 Pro",
                                               "supported_parameters": {"aspect_ratio": {"type": "enum"}}}]})
+        if self.path == "/dt/sdapi/v1/options":
+            return self._send(200, {"model": "flux_2_klein_4b_q8p.ckpt", "steps": 4, "prompt": "private text"})
         if self.path == "/v1/models":
             return self._send(200, {"object": "list", "data": [{"id": "Qwen/Qwen-Image", "object": "model",
                                                                 "created": 0, "owned_by": "vllm"}]})
@@ -39,6 +41,26 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         raw = self.rfile.read(int(self.headers["Content-Length"]))
         SEEN.append((self.path, {k.lower(): v for k, v in self.headers.items()}, raw))
+        if self.path == "/detail/v1/images/generations":  # FastAPI style: {"detail": "..."} with no "error" key
+            return self._send(400, {"detail": "Model mismatch: request specifies 'x' but server is running 'y'."})
+        if self.path in ("/dt/sdapi/v1/txt2img", "/dt/sdapi/v1/img2img"):
+            # Draw Things (observed live 2026-11-22): unknown keys are a 422, init_images must match width and height
+            err = lambda detail: self._send(422, {"body": "", "error": "HTTPException", "detail": detail, "errors": ""})
+            body = json.loads(raw)
+            known = {"prompt", "model", "seed", "width", "height", "batch_count", "steps", "guidance_scale",
+                     "init_images", "negative_prompt", "strength"}
+            if set(body) - known:
+                return err(f"Unrecognized keys: {json.dumps(sorted(set(body) - known))}")
+            if self.path.endswith("txt2img") and "init_images" in body:
+                return err("init_images is not supported for text-to-image")
+            if self.path.endswith("img2img"):
+                imgs = body.get("init_images") or []
+                if len(imgs) == 1:
+                    blob = base64.b64decode(imgs[0])
+                    w, h = int.from_bytes(blob[16:20], "big"), int.from_bytes(blob[20:24], "big")
+                    if h != body.get("height") or w != body.get("width"):
+                        return err(f"init_images width doesn't match {w} from the parameter {body.get('width')}")
+            return self._send(200, {"images": [PNG] * body.get("batch_count", 1)})
         if self.path.startswith("/noimg/"):  # a server without image routes answers with plain text
             b = b"404 page not found"
             self.send_response(404); self.send_header("Content-Type", "text/plain")
@@ -118,6 +140,13 @@ style = "openai"
 base_url = "http://127.0.0.1:{PORT}/v1"
 model = "sd-cpp-local"
 extra_in_prompt = true
+[profiles.dt]
+style = "sdapi"
+base_url = "http://127.0.0.1:{PORT}/dt"
+[profiles.detail]
+style = "openai"
+base_url = "http://127.0.0.1:{PORT}/detail/v1"
+model = "x"
 [profiles.noimg]
 style = "openai"
 base_url = "http://127.0.0.1:{PORT}/noimg/v1"
@@ -271,6 +300,46 @@ ok(r.returncode == 0 and b'<sd_cpp_extra_args>{"seed":3}</sd_cpp_extra_args>' in
 (tmp / "badprompt.toml").write_text('[profiles.openrouter]\nstyle = "openrouter"\nbase_url = "http://x/v1"\nextra_in_prompt = true\n')
 r = run("--config", str(tmp / "badprompt.toml"), "generate", "x", "--dry-run")
 ok(r.returncode == 1 and "extra_in_prompt must be" in r.stderr, "extra_in_prompt rejected on openrouter style")
+# image_size reads PNG and JPEG headers (Draw Things needs width and height to equal the init image)
+import importlib.util
+
+_spec = importlib.util.spec_from_file_location("imgate_mod", SCRIPT); _mod = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(_mod)
+jpg = (b"\xff\xd8" + b"\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+       + b"\xff\xc0\x00\x11\x08" + (480).to_bytes(2, "big") + (640).to_bytes(2, "big") + b"\x03\x01\x22\x00\x02\x11\x01\x03\x11\x01")
+ok(_mod.image_size(jpg) == (640, 480), "image_size: JPEG width and height, skipping the APP0 segment")
+ok(_mod.image_size(mkpng(3, 2)) == (3, 2) and _mod.image_size(b"GIF89a") is None and _mod.image_size(b"\xff\xd8\xff") is None, "image_size: PNG, and None for other or truncated data")
+
+# Draw Things (sdapi style)
+n0 = len(SEEN)
+r = run("generate", "a boat", "-P", "dt", "--size", "512x512", "--seed", "7", "-n", "2", "--set", "steps=6", "--json")
+ok(r.returncode == 0 and len(json.loads(r.stdout)["files"]) == 2, f"sdapi: n=2 returns two images ({r.stderr.strip()[:120]})")
+b = json.loads(last("/dt/sdapi/v1/txt2img")[2])
+ok(b == {"prompt": "a boat", "seed": 7, "batch_count": 2, "width": 512, "height": 512, "steps": 6}, f"sdapi: only app fields are sent ({sorted(b)})")
+ok(json.loads(r.stdout)["seed"] == 7, "sdapi: reported seed is the sent seed")
+r = run("generate", "a boat", "-P", "dt", "--dry-run")
+seed1 = json.loads(r.stdout)["request"]["body"]["seed"]
+seed2 = json.loads(run("generate", "a boat", "-P", "dt", "--dry-run").stdout)["request"]["body"]["seed"]
+ok(isinstance(seed1, int) and seed1 != seed2, "sdapi: no --seed picks a random one (the app would reuse its own fixed seed)")
+r = run("generate", "a boat", "-P", "dt", "--json"); ok(r.returncode == 0 and json.loads(r.stdout)["seed"] == json.loads(last("/dt/sdapi/v1/txt2img")[2])["seed"], "sdapi: random seed is sent and reported")
+n1 = len(SEEN)
+r = run("generate", "a boat", "-P", "dt", "--aspect-ratio", "16:9")
+ok(r.returncode == 1 and "supports only the flags n, size, seed (got aspect_ratio)" in r.stderr and len(SEEN) == n1, "sdapi: unsupported flag is an error, with no API call")
+r = run("generate", "a boat", "-P", "dt", "--ref", str(ref), "--mask", str(mask1)); ok(r.returncode == 1 and "no mask field" in r.stderr, "sdapi: --mask rejected")
+r = run("generate", "a boat", "-P", "dt", "--ref", str(ref), "--ref", str(ref)); ok(r.returncode == 1 and "at most one reference" in r.stderr, "sdapi: two references rejected")
+r = run("generate", "edit", "-P", "dt", "--ref", str(ref), "--seed", "3")
+b = json.loads(last("/dt/sdapi/v1/img2img")[2])
+ok(r.returncode == 0 and b["width"] == 1 and b["height"] == 1 and not b["init_images"][0].startswith("data:"), f"sdapi: img2img takes size from the reference, raw base64 ({r.stderr.strip()[:100]})")
+n2 = len(SEEN)
+r = run("generate", "edit", "-P", "dt", "--ref", str(ref), "--size", "64x64")
+ok(r.returncode == 1 and "must equal the reference image size 1x1" in r.stderr and len(SEEN) == n2, "sdapi: --size that differs from the reference is caught before the call")
+r = run("generate", "edit", "-P", "dt", "--ref", str(ref), "--dry-run")
+ok("<base64" in json.loads(r.stdout)["request"]["body"]["init_images"][0], "sdapi: dry-run redacts the image")
+r = run("generate", "a boat", "-P", "dt", "--set", "bogus=1")
+ok(r.returncode == 1 and 'HTTPException: Unrecognized keys: ["bogus"]' in r.stderr, "sdapi: the app's 422 detail is shown, not just 'Error code: 422'")
+r = run("models", "-P", "dt"); ok("flux_2_klein_4b_q8p.ckpt" in r.stdout and "private text" not in r.stdout, "sdapi: models shows the selected model only")
+r = run("generate", "a boat", "-P", "detail"); ok(r.returncode == 1 and "Model mismatch" in r.stderr, "a {\"detail\": ...} error body is shown (vLLM-Omni style)")
+r = run("generate", "edit", "-P", "dt", "--ref", str(ref), "--seed", "3", "-m", "some_model.ckpt")
+ok(json.loads(last("/dt/sdapi/v1/img2img")[2])["model"] == "some_model.ckpt", "sdapi: explicit -m is sent as model")
 r = run("generate", "edit", "--ref", str(ref), "--mask", str(mask2)); ok(r.returncode == 1 and "must equal" in r.stderr, "mask size mismatch rejected")
 r = run("generate", "edit", "--mask", str(mask1)); ok(r.returncode == 1 and "needs at least one reference" in r.stderr, "mask without ref rejected")
 (tmp / "notpng.png").write_bytes(b"GIF89a....")

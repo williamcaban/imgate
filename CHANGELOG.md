@@ -7,6 +7,14 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor
 
 ### Added
 
+- `sdapi` style for the Draw Things app's HTTP API server (`/sdapi/v1/txt2img` and `/img2img`). Strict: only
+  `-n` (as `batch_count`), `--size` and `--seed` map, other flags are an error, and `--set` carries the app's own
+  keys. A reference becomes `init_images` with width and height taken from the image (PNG or JPEG). Masks are
+  rejected. With no seed, imgate picks a random one, because the app otherwise reuses its own seed. Checked
+  live, including that an API call overwrites the app's prompt field. See the README.
+- Error bodies shaped `{"detail": "..."}` (Draw Things, vLLM-Omni) are now shown. The openai client unwraps the
+  `error` key and dropped the detail, leaving `Error code: 422`.
+
 - `extra_in_prompt` profile setting for stable-diffusion.cpp's `sd-server`, which reads only `prompt`, `n`,
   `size`, `output_format` and `output_compression` as top-level fields and silently dropped `--seed`. With
   `extra_in_prompt = true`, `seed` and `--set`/`extra` fields are sent as a `<sd_cpp_extra_args>` block in the

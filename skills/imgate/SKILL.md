@@ -1,6 +1,6 @@
 ---
 name: imgate
-description: Generate or edit images through OpenRouter or a self-hosted OpenAI-compatible server (vLLM-Omni, stable-diffusion.cpp, OpenAI) using the bundled imgate.py CLI. Use when the user asks to generate, render, draw, or create an image, or to turn an image prompt into an actual picture.
+description: Generate or edit images through OpenRouter or a self-hosted OpenAI-compatible server (vLLM-Omni, stable-diffusion.cpp, Draw Things, OpenAI) using the bundled imgate.py CLI. Use when the user asks to generate, render, draw, or create an image, or to turn an image prompt into an actual picture.
 ---
 
 # Image generation (OpenRouter and self-hosted)
@@ -36,6 +36,7 @@ A profile picks the endpoint and API style. `profiles` lists them, `-P NAME` sel
 | style | endpoints | use for |
 |---|---|---|
 | `openrouter` | `POST /images`, `GET /images/models` | OpenRouter (native API) |
+| `sdapi` | `POST /sdapi/v1/txt2img`, `/img2img` | Draw Things app (HTTP API server). Only `-n`, `--size`, `--seed`; the rest via `--set` using the app's key names. No masks. Overwrites the app's prompt field |
 | `openai` | `POST /images/generations`, `/images/edits`, `GET /models` | OpenAI, vLLM-Omni, stable-diffusion.cpp `sd-server` (set `extra_in_prompt = true` so `--seed` works), other OpenAI-compatible servers |
 
 ## Commands

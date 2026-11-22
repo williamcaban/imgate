@@ -15,6 +15,7 @@ Profiles (config.toml) pick the endpoint and API style:
   style = "openrouter"  POST {base_url}/images, GET {base_url}/images/models   (OpenRouter native)
   style = "openai"      POST {base_url}/images/generations and /images/edits   (OpenAI API, vLLM-Omni,
                         and other OpenAI-compatible servers)
+  style = "sdapi"       POST {base_url}/sdapi/v1/txt2img and /img2img            (Draw Things HTTP API server)
 API keys are read from environment variables named by the profile, never from the config file.
 """
 from __future__ import annotations
@@ -32,6 +33,7 @@ import inspect
 import json
 import mimetypes
 import os
+import random
 import re
 import tomllib
 import urllib.request
@@ -120,6 +122,14 @@ model    = "Qwen/Qwen-Image"
 # model           = "sd-cpp-local"
 # extra_in_prompt = true     # it ignores top-level seed and extra fields; this sends them in the prompt
 #                            # as <sd_cpp_extra_args>{json}</sd_cpp_extra_args>. Checked live 2026-11-22.
+
+# Draw Things app: Settings, enable the API Server and pick HTTP. It speaks the AUTOMATIC1111 API, not OpenAI's.
+# Requests start from the app's current settings (model, steps, ...) and override only what imgate sends.
+# Flags: -n, --size, --seed. Anything else goes through --set, e.g. --set steps=4 --set negative_prompt="...".
+# [profiles.drawthings]
+# style    = "sdapi"
+# base_url = "http://127.0.0.1:7860"      # no /v1; the routes are /sdapi/v1/txt2img and /img2img
+# model    = "app"                        # "app" = use the model selected in the app (default)
 
 # OpenAI itself
 # [profiles.openai]
@@ -235,6 +245,29 @@ def png_size(b: bytes) -> tuple[int, int] | None:
     return None
 
 
+def image_size(b: bytes) -> tuple[int, int] | None:
+    """(width, height) of a PNG or JPEG, or None for anything else."""
+    if (size := png_size(b)) is not None:
+        return size
+    if b[:2] != b"\xff\xd8":
+        return None
+    i = 2
+    while i + 9 < len(b):
+        if b[i] != 0xFF:
+            i += 1
+            continue
+        marker = b[i + 1]
+        if marker == 0xFF:
+            i += 1
+        elif marker in (0xD8, 0x01) or 0xD0 <= marker <= 0xD7:
+            i += 2
+        elif marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+            return int.from_bytes(b[i + 7:i + 9], "big"), int.from_bytes(b[i + 5:i + 7], "big")
+        else:
+            i += 2 + int.from_bytes(b[i + 2:i + 4], "big")
+    return None
+
+
 MAX_REF_BYTES = 20 * 1024 * 1024
 MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024
 _SECRETS: set[str] = set()
@@ -275,8 +308,8 @@ def load_config(path: str | None = None) -> dict:
             cfg["_path"] = str(p)
             break
     for name, prof in cfg["profiles"].items():
-        if prof.get("style") not in ("openrouter", "openai"):
-            raise ImgateError(f"Profile '{name}': style must be 'openrouter' or 'openai'.")
+        if prof.get("style") not in ("openrouter", "openai", "sdapi"):
+            raise ImgateError(f"Profile '{name}': style must be 'openrouter', 'openai' or 'sdapi'.")
         if not prof.get("base_url"):
             raise ImgateError(f"Profile '{name}': base_url is required.")
         if not isinstance(prof.get("mask_field", "mask"), str) or not prof.get("mask_field", "mask"):
@@ -354,7 +387,15 @@ def wrap_api_errors(fn, prof: dict, timeout: float):
         raise ImgateError(redact(f"Cannot reach {prof['base_url']}: {e.__cause__ or e}")) from None
     except openai.APIStatusError as e:
         msg = e.message
-        if isinstance(e.body, dict):
+        try:  # the client unwraps the "error" key, which drops a sibling "detail" (Draw Things, FastAPI servers)
+            raw = e.response.json()
+        except ValueError:
+            raw = None
+        detail = raw.get("detail") if isinstance(raw, dict) else None
+        if isinstance(detail, str) and detail:
+            label = raw.get("error")
+            msg = f"{label}: {detail}" if isinstance(label, str) and label else detail
+        elif isinstance(e.body, dict):
             err = e.body.get("error", e.body)
             msg = err.get("message", msg) if isinstance(err, dict) else str(err)
         elif e.status_code == 404 and "/images" in e.request.url.path:
@@ -459,6 +500,8 @@ def make_plan(cfg: dict, prompt: str, *, profile: str | None = None, model: str 
         if prof["style"] == "openrouter":
             deep_merge(prov, pr.get("provider", {}))
     chosen = model or chosen
+    if not chosen and prof["style"] == "sdapi":
+        chosen = "app"  # use whatever model is selected in the Draw Things app
     if not chosen:
         raise ImgateError(f"No model set for profile '{prof['name']}'. Pass -m or set `model` in the profile.")
     for k, v in (params or {}).items():
@@ -473,6 +516,15 @@ def make_plan(cfg: dict, prompt: str, *, profile: str | None = None, model: str 
     if extra:
         deep_merge(ex, extra)
     checked = [check_ref(cfg, r, restrict_refs) for r in refs or []]
+    if prof["style"] == "sdapi" and "seed" not in p and "seed" not in ex:
+        # Draw Things falls back to the seed set in the app, so repeated runs gave the same image
+        # (checked live 2026-11-22). Pick one here so runs differ and the sidecar records it.
+        p["seed"] = random.randrange(2**32)
+    if prof["style"] == "sdapi":
+        if mask:
+            raise ImgateError("The sdapi style (Draw Things) has no mask field, so --mask is not supported.")
+        if len(checked) > 1:
+            raise ImgateError("The sdapi style takes at most one reference image (img2img init_images).")
     mask_ref = None
     if mask:
         if not checked:
@@ -507,6 +559,54 @@ def ref_entry(prof: dict, url: str):
     if prof.get("ref_shape", "image_url") == "string":
         return url
     return {"type": "image_url", "image_url": {"url": url}}
+
+
+SDAPI_FLAGS = ("n", "size", "seed")
+
+
+def sdapi_body(plan: dict, redact: bool = False) -> tuple[str, dict]:
+    """(endpoint, JSON body) for Draw Things' txt2img/img2img.
+
+    The app rejects unknown keys ("Unrecognized keys: [...]") and starts from its own current settings, so only
+    the fields given here are overridden. It needs width and height to equal the init image size exactly.
+    """
+    params = dict(plan["params"])
+    bad = sorted(set(params) - set(SDAPI_FLAGS))
+    if bad:
+        raise ImgateError(f"The sdapi style supports only the flags {', '.join(SDAPI_FLAGS)} (got {', '.join(bad)}). "
+                          "Use --set key=value for the app's own fields, e.g. --set steps=4 --set guidance_scale=1.")
+    body: dict = {"prompt": plan["prompt"]}
+    if plan["model"] != "app":
+        body["model"] = plan["model"]
+    if "n" in params:
+        body["batch_count"] = params["n"]
+    if "seed" in params:
+        body["seed"] = params["seed"]
+    size = params.get("size")
+    if size:
+        m = re.fullmatch(r"(\d+)x(\d+)", str(size))
+        if not m:
+            raise ImgateError(f"size must look like 768x768, got '{size}'.")
+        body["width"], body["height"] = int(m[1]), int(m[2])
+    endpoint = "txt2img"
+    if plan["refs"]:
+        endpoint = "img2img"
+        ref = plan["refs"][0]
+        if redact and ref.startswith(("http://", "https://")):
+            body["init_images"] = [f"<image {ref}>"]
+        else:
+            data = ref_bytes(plan["cfg"], ref)[1]
+            dims = image_size(data)
+            if dims is None:
+                raise ImgateError("The reference must be a PNG or JPEG so its size can be matched: Draw Things "
+                                  "requires width and height to equal the init image size.")
+            if size and (body["width"], body["height"]) != dims:
+                raise ImgateError(f"--size {size} must equal the reference image size {dims[0]}x{dims[1]}; "
+                                  "Draw Things rejects a mismatch.")
+            body["width"], body["height"] = dims
+            body["init_images"] = [f"<base64 {len(data)} bytes>" if redact else base64.b64encode(data).decode()]
+    deep_merge(body, plan["extra"])
+    return endpoint, body
 
 
 EXTRA_TAG = "sd_cpp_extra_args"
@@ -547,6 +647,9 @@ def plan_view(plan: dict) -> dict:
             body["markup"] = ref_entry(prof, "<data-url>" if plan["mask"].startswith("data:") else plan["mask"])
         deep_merge(body, plan["extra"])
         endpoint = "POST /images"
+    elif prof["style"] == "sdapi":
+        ep, body = sdapi_body(plan, redact=True)
+        endpoint = f"POST /sdapi/v1/{ep}"
     else:
         prompt, params, extra = effective_fields(plan)
         body = {"model": plan["model"], "prompt": prompt, **params, **extra}
@@ -572,6 +675,10 @@ def call_api(plan: dict) -> dict:
             body["markup"] = ref_entry(prof, ref_as_input(cfg, plan["mask"]))
         deep_merge(body, plan["extra"])
         return wrap_api_errors(lambda: client.post("/images", cast_to=object, body=body), prof, cfg["timeout"])
+    if prof["style"] == "sdapi":
+        ep, body = sdapi_body(plan)
+        resp = wrap_api_errors(lambda: client.post(f"/sdapi/v1/{ep}", cast_to=object, body=body), prof, cfg["timeout"])
+        return {"data": [{"b64_json": img} for img in (resp.get("images") or [])]}
     # style = openai
     fn = client.images.edit if plan["refs"] else client.images.generate
     known = _sig_params(fn)
@@ -671,6 +778,9 @@ def list_models(cfg: dict, profile: str | None = None, filt: str | None = None) 
         for m in resp.get("data", []):
             out.append({"id": m.get("id"), "name": m.get("name"),
                         "supported_parameters": m.get("supported_parameters", {})})
+    elif prof["style"] == "sdapi":  # only the model currently selected in the app is exposed
+        resp = wrap_api_errors(lambda: client.get("/sdapi/v1/options", cast_to=object), prof, cfg["timeout"])
+        out = [{"id": resp.get("model") or "app", "name": "selected in the Draw Things app", "supported_parameters": {}}]
     else:  # /models lists every served model, not only image models
         resp = wrap_api_errors(lambda: client.models.list(), prof, cfg["timeout"])
         out = [{"id": m.id, "name": m.id, "supported_parameters": {}} for m in resp.data]

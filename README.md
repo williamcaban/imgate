@@ -36,7 +36,7 @@ per request, and the same commands, presets, guards and output format work again
 default `model`, and the name of the environment variable that holds its key. `imgate profiles`
 lists them, `-P name` selects one, and `default_profile` or `IMGATE_PROFILE` sets the default.
 
-**Two API styles cover the field.**
+**Three API styles cover the field.**
 
 - `openrouter`: OpenRouter's native `POST /images` and `GET /images/models`. OpenRouter's docs
   describe only `/images`, not the OpenAI SDK path, so imgate sends this through the openai
@@ -45,6 +45,9 @@ lists them, `-P name` selects one, and `default_profile` or `IMGATE_PROFILE` set
 - `openai`: `POST /images/generations`, `POST /images/edits` and `GET /models` through the openai
   client's `images` methods. Use it for vLLM-Omni, OpenAI and other
   OpenAI-compatible servers.
+- `sdapi`: the Draw Things app's HTTP API server, which speaks the AUTOMATIC1111 API: `POST /sdapi/v1/txt2img`
+  and `/img2img`. It rejects unknown fields, so this style is strict: only `-n`, `--size` and `--seed` map to
+  it, other flags are an error, and the app's own fields go through `--set`.
 
 **One request model, routed per style.** You set parameters once (`-n`, `--size`, `--seed`,
 `--aspect-ratio`, `--set key=value`, ...). For `openai` style, imgate reads the installed SDK's
@@ -111,6 +114,23 @@ Checked live on a Mac (stable-diffusion.cpp `sd-server` build master-1106-532d2c
   on a 64 GB Apple silicon Mac, with the default 4 steps.
 - Not tested there: `mask`, and imgate fields the server does not list (`aspect_ratio`, `quality`, `background`).
 
+Checked live against the Draw Things app (HTTP API server on `127.0.0.1:7860`, FLUX.2 klein 4B q8 selected in
+the app, `sdapi` style):
+
+- `txt2img`, `img2img` (a reference edit), `-n 2` (two images) and `--set steps=6` work. About 19 s for a
+  768x768 text-to-image, 37 s for an edit, 55 s for two images at 6 steps.
+- Requests start from the app's current settings and override only the fields sent. Of 87 settings, only
+  `prompt` changed in the app afterwards: **an API call overwrites the app's prompt field.** Seed, size and
+  steps did not persist.
+- With no seed sent, the app uses its own fixed seed, so repeated runs gave the same picture. imgate now picks a
+  random seed and records it. The same seed gives identical pixels (file bytes differ: the app embeds
+  `eXIf` and `iTXt` metadata).
+- Unknown fields are an HTTP 422 `Unrecognized keys: [...]`. The `init_images` size must equal `width` and
+  `height`, so imgate takes the size from the reference and rejects a different `--size`.
+- Not tested: masks (the source has no mask field, so `--mask` is rejected), `loras` and `controls` through
+  `--set`, `strength` on models that are not editing models, and the gRPC option, which is Draw Things' own
+  protocol and is not supported.
+
 Taken from primary sources, not tested live:
 
 - OpenAI `/images/edits` `mask`: fully transparent (alpha zero) areas are edited, the mask applies to the first
@@ -160,6 +180,24 @@ Apache-2.0 and need no Hugging Face login (16 GB in total).
 Then add the profile from `imgate.py init --print` (`[profiles.sdcpp]`, with `extra_in_prompt = true`) and run
 `imgate.py generate "..." -P sdcpp --size 768x768 --seed 7`. The binary is unsigned and universal; it is not
 managed by Homebrew, so new releases are manual downloads.
+
+## Draw Things (macOS app)
+
+In the app, enable the API server and choose **HTTP** (not gRPC, which is the app's own protocol). Your app then
+listens on `127.0.0.1` at the port it shows (7860 on the machine tested). Add:
+
+    [profiles.drawthings]
+    style    = "sdapi"
+    base_url = "http://127.0.0.1:7860"      # no /v1
+    model    = "app"                        # "app" = whatever model is selected in the app
+
+    imgate.py generate "..." -P drawthings --size 768x768 --seed 7 --set steps=4
+    imgate.py generate "Change only the sky to dusk" -P drawthings --ref ./input.png --seed 7
+
+The model, sampler, steps and guidance come from the app's current settings unless you pass `--set steps=...`,
+`--set guidance_scale=...`, `--set negative_prompt=...` (the app's own key names, with `cfg_scale` and
+`n_iter`-style aliases). `imgate.py models -P drawthings` shows the selected model. Each call overwrites the app's
+prompt field, so do not run it while you are writing a prompt there.
 
 ## Prompt help
 

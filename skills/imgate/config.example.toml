@@ -46,6 +46,14 @@ model    = "Qwen/Qwen-Image"
 # extra_in_prompt = true     # it ignores top-level seed and extra fields; this sends them in the prompt
 #                            # as <sd_cpp_extra_args>{json}</sd_cpp_extra_args>. Checked live 2026-11-22.
 
+# Draw Things app: Settings, enable the API Server and pick HTTP. It speaks the AUTOMATIC1111 API, not OpenAI's.
+# Requests start from the app's current settings (model, steps, ...) and override only what imgate sends.
+# Flags: -n, --size, --seed. Anything else goes through --set, e.g. --set steps=4 --set negative_prompt="...".
+# [profiles.drawthings]
+# style    = "sdapi"
+# base_url = "http://127.0.0.1:7860"      # no /v1; the routes are /sdapi/v1/txt2img and /img2img
+# model    = "app"                        # "app" = use the model selected in the app (default)
+
 # OpenAI itself
 # [profiles.openai]
 # style       = "openai"
