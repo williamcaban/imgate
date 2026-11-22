@@ -113,6 +113,14 @@ model    = "Qwen/Qwen-Image"
 # [profiles.vllm-omni.extra]        # sent on every request (provider-specific fields)
 # num_inference_steps = 30
 
+# stable-diffusion.cpp sd-server (runs FLUX.2 klein on a Mac with Metal; OpenAI-style API at /v1)
+# [profiles.sdcpp]
+# style           = "openai"
+# base_url        = "http://127.0.0.1:1234/v1"
+# model           = "sd-cpp-local"
+# extra_in_prompt = true     # it ignores top-level seed and extra fields; this sends them in the prompt
+#                            # as <sd_cpp_extra_args>{json}</sd_cpp_extra_args>. Checked live 2026-11-22.
+
 # OpenAI itself
 # [profiles.openai]
 # style       = "openai"
@@ -275,6 +283,8 @@ def load_config(path: str | None = None) -> dict:
             raise ImgateError(f"Profile '{name}': mask_field must be a non-empty string.")
         if prof.get("ref_shape", "image_url") not in ("image_url", "string"):
             raise ImgateError(f"Profile '{name}': ref_shape must be 'image_url' or 'string'.")
+        if "extra_in_prompt" in prof and (prof["extra_in_prompt"] not in (True, False) or prof["style"] != "openai"):
+            raise ImgateError(f"Profile '{name}': extra_in_prompt must be true or false, and needs style = 'openai'.")
     return cfg
 
 
@@ -499,6 +509,30 @@ def ref_entry(prof: dict, url: str):
     return {"type": "image_url", "image_url": {"url": url}}
 
 
+EXTRA_TAG = "sd_cpp_extra_args"
+
+
+def effective_fields(plan: dict) -> tuple[str, dict, dict]:
+    """(prompt, params, extra) as they will be sent for an openai-style profile.
+
+    With `extra_in_prompt = true` (stable-diffusion.cpp's sd-server) `seed` and every `extra` field move into a
+    <sd_cpp_extra_args>{json}</sd_cpp_extra_args> block appended to the prompt. That server reads only prompt, n,
+    size, output_format and output_compression as top-level fields and silently drops the rest, so a plain
+    --seed was ignored (checked live 2026-11-22: server log showed a random seed, not the requested one).
+    """
+    prompt, params, extra = plan["prompt"], dict(plan["params"]), dict(plan["extra"])
+    if plan["prof"].get("extra_in_prompt"):
+        embedded, extra = extra, {}
+        if "seed" in params:
+            embedded["seed"] = params.pop("seed")
+        if embedded:
+            if f"<{EXTRA_TAG}>" in prompt:
+                raise ImgateError(f"The prompt already contains a <{EXTRA_TAG}> block; remove it or the "
+                                  "--seed/--set fields (profile has extra_in_prompt = true).")
+            prompt = f"{prompt} <{EXTRA_TAG}>{json.dumps(embedded, separators=(',', ':'))}</{EXTRA_TAG}>"
+    return prompt, params, extra
+
+
 def plan_view(plan: dict) -> dict:
     """What will be sent, with reference contents redacted. Used for dry-run and sidecars."""
     prof = plan["prof"]
@@ -514,7 +548,8 @@ def plan_view(plan: dict) -> dict:
         deep_merge(body, plan["extra"])
         endpoint = "POST /images"
     else:
-        body = {"model": plan["model"], "prompt": plan["prompt"], **plan["params"], **plan["extra"]}
+        prompt, params, extra = effective_fields(plan)
+        body = {"model": plan["model"], "prompt": prompt, **params, **extra}
         if refs:
             body["image"] = refs
         if plan["mask"]:
@@ -540,9 +575,10 @@ def call_api(plan: dict) -> dict:
     # style = openai
     fn = client.images.edit if plan["refs"] else client.images.generate
     known = _sig_params(fn)
-    kwargs: dict = {"model": plan["model"], "prompt": plan["prompt"]}
-    extra_body = dict(plan["extra"])
-    for k, v in plan["params"].items():
+    prompt, params, extra = effective_fields(plan)
+    kwargs: dict = {"model": plan["model"], "prompt": prompt}
+    extra_body = dict(extra)
+    for k, v in params.items():
         (kwargs if k in known else extra_body)[k] = v
     mask_field = prof.get("mask_field", "mask")
     if plan["mask"] and mask_field != "mask":

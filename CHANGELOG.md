@@ -3,6 +3,17 @@
 All notable changes to imgate. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor bump may change behavior).
 
+## Unreleased
+
+### Added
+
+- `extra_in_prompt` profile setting for stable-diffusion.cpp's `sd-server`, which reads only `prompt`, `n`,
+  `size`, `output_format` and `output_compression` as top-level fields and silently dropped `--seed`. With
+  `extra_in_prompt = true`, `seed` and `--set`/`extra` fields are sent as a `<sd_cpp_extra_args>` block in the
+  prompt. Checked live: the same seed gives byte-identical images. A prompt that already holds such a block
+  plus `--seed` or `--set` is an error.
+- README section for running FLUX.2 klein 4B locally on a Mac with the prebuilt `sd-server` (Metal).
+
 ## 0.5.0 - 2026-11-22
 
 First release checked against a live OpenRouter endpoint. The details are in the

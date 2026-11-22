@@ -113,6 +113,11 @@ style = "openai"
 base_url = "http://127.0.0.1:{PORT}/v1"
 model = "Qwen/Qwen-Image-Edit-2511"
 mask_field = "mask_image"
+[profiles.sdcpp]
+style = "openai"
+base_url = "http://127.0.0.1:{PORT}/v1"
+model = "sd-cpp-local"
+extra_in_prompt = true
 [profiles.noimg]
 style = "openai"
 base_url = "http://127.0.0.1:{PORT}/noimg/v1"
@@ -245,6 +250,27 @@ raw = last("/v1/images/edits")[2]
 ok(r.returncode == 0 and b'name="mask_image"' in raw and b'name="mask"' not in raw and b"data:image/png;base64," in raw, f"mask_field sends the mask as a mask_image form field ({r.stderr.strip()[:120]})")
 r = run("generate", "edit", "-P", "vmask", "--ref", str(ref), "--mask", str(mask1), "--dry-run")
 ok("mask_image" in json.loads(r.stdout)["request"]["body"] and "mask" not in json.loads(r.stdout)["request"]["body"], "dry-run shows the configured mask field")
+# sd-server reads only prompt/n/size/output_* at top level and drops the rest; seed and extras go in the prompt tag
+TAG = '<sd_cpp_extra_args>{"sample_params":{"sample_steps":4},"seed":7}</sd_cpp_extra_args>'
+r = run("generate", "a cat", "-P", "sdcpp", "--seed", "7", "--size", "512x512", "--set", 'sample_params={"sample_steps":4}')
+b = json.loads(last("/v1/images/generations")[2])
+ok(r.returncode == 0 and b["prompt"] == "a cat " + TAG, f"extra_in_prompt embeds seed and --set in the prompt ({r.stderr.strip()[:120]})")
+ok("seed" not in b and "sample_params" not in b and b["size"] == "512x512", "extra_in_prompt keeps seed and extras out of the body, size stays top-level")
+r = run("generate", "a cat", "-P", "sdcpp", "--seed", "7", "--set", 'sample_params={"sample_steps":4}', "--dry-run")
+ok(json.loads(r.stdout)["request"]["body"]["prompt"] == "a cat " + TAG and "seed" not in json.loads(r.stdout)["request"]["body"], "dry-run shows the embedded prompt")
+r = run("generate", "a cat", "-P", "sdcpp", "--size", "256x256")
+ok(r.returncode == 0 and json.loads(last("/v1/images/generations")[2])["prompt"] == "a cat", "no seed or extras: prompt left untouched")
+r = run("generate", "a cat <sd_cpp_extra_args>{}</sd_cpp_extra_args>", "-P", "sdcpp", "--seed", "1")
+ok(r.returncode == 1 and "already contains" in r.stderr, "existing tag plus --seed is an error, not a silent merge")
+r = run("generate", "a cat", "-P", "vllm", "--seed", "7")
+bb = json.loads(last("/v1/images/generations")[2])
+ok(bb["seed"] == 7 and "sd_cpp_extra_args" not in bb["prompt"], "profiles without extra_in_prompt still send seed as a body field")
+r = run("generate", "edit", "-P", "sdcpp", "--ref", str(ref), "--seed", "3")
+raw = last("/v1/images/edits")[2]
+ok(r.returncode == 0 and b'<sd_cpp_extra_args>{"seed":3}</sd_cpp_extra_args>' in raw and b'name="seed"' not in raw, "edits: tag in the prompt form field, no seed field")
+(tmp / "badprompt.toml").write_text('[profiles.openrouter]\nstyle = "openrouter"\nbase_url = "http://x/v1"\nextra_in_prompt = true\n')
+r = run("--config", str(tmp / "badprompt.toml"), "generate", "x", "--dry-run")
+ok(r.returncode == 1 and "extra_in_prompt must be" in r.stderr, "extra_in_prompt rejected on openrouter style")
 r = run("generate", "edit", "--ref", str(ref), "--mask", str(mask2)); ok(r.returncode == 1 and "must equal" in r.stderr, "mask size mismatch rejected")
 r = run("generate", "edit", "--mask", str(mask1)); ok(r.returncode == 1 and "needs at least one reference" in r.stderr, "mask without ref rejected")
 (tmp / "notpng.png").write_bytes(b"GIF89a....")

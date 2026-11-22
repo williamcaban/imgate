@@ -1,6 +1,6 @@
 ---
 name: imgate
-description: Generate or edit images through OpenRouter or a self-hosted OpenAI-compatible server (vLLM-Omni, OpenAI) using the bundled imgate.py CLI. Use when the user asks to generate, render, draw, or create an image, or to turn an image prompt into an actual picture.
+description: Generate or edit images through OpenRouter or a self-hosted OpenAI-compatible server (vLLM-Omni, stable-diffusion.cpp, OpenAI) using the bundled imgate.py CLI. Use when the user asks to generate, render, draw, or create an image, or to turn an image prompt into an actual picture.
 ---
 
 # Image generation (OpenRouter and self-hosted)
@@ -36,7 +36,7 @@ A profile picks the endpoint and API style. `profiles` lists them, `-P NAME` sel
 | style | endpoints | use for |
 |---|---|---|
 | `openrouter` | `POST /images`, `GET /images/models` | OpenRouter (native API) |
-| `openai` | `POST /images/generations`, `/images/edits`, `GET /models` | OpenAI, vLLM-Omni, other OpenAI-compatible servers. |
+| `openai` | `POST /images/generations`, `/images/edits`, `GET /models` | OpenAI, vLLM-Omni, stable-diffusion.cpp `sd-server` (set `extra_in_prompt = true` so `--seed` works), other OpenAI-compatible servers |
 
 ## Commands
 

@@ -38,6 +38,14 @@ model    = "Qwen/Qwen-Image"
 # [profiles.vllm-omni.extra]        # sent on every request (provider-specific fields)
 # num_inference_steps = 30
 
+# stable-diffusion.cpp sd-server (runs FLUX.2 klein on a Mac with Metal; OpenAI-style API at /v1)
+# [profiles.sdcpp]
+# style           = "openai"
+# base_url        = "http://127.0.0.1:1234/v1"
+# model           = "sd-cpp-local"
+# extra_in_prompt = true     # it ignores top-level seed and extra fields; this sends them in the prompt
+#                            # as <sd_cpp_extra_args>{json}</sd_cpp_extra_args>. Checked live 2026-11-22.
+
 # OpenAI itself
 # [profiles.openai]
 # style       = "openai"
