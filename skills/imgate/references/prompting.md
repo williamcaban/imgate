@@ -79,10 +79,12 @@ If the model garbles it, shorten the text, simplify the typography request, or t
 - Label every input image by role. With a mask, describe the masked change only.
 - If part of an image must stay pixel-identical, do not rely on the prompt. OpenAI's guidance is
   to composite the approved edit back into the original.
-- Masks: `--mask` needs a PNG with the same pixel size as the first reference. OpenAI-style
-  servers treat transparent mask areas as the area to edit. OpenRouter's `markup` overlay is
-  documented as a transparent PNG that marks where the edit applies, and only some models honor
-  it. The exact convention is not documented, so test with a trivial edit first.
+- Masks: `--mask` needs a PNG with the same pixel size as the first reference. OpenAI's `mask`
+  treats fully transparent areas as the area to edit. OpenRouter's `markup` overlay is documented as
+  a transparent PNG that marks where the edit applies, and only some models honor it. The docs do not
+  say which pixels mark the area. Observed on `openai/gpt-image-2.6-sunburst`: opaque pixels did
+  (2 of 2 trials), and the model re-rendered the whole picture, so treat it as guidance. vLLM-Omni
+  uses a `mask_image` field (untested live). Test with a trivial edit first.
 - `input_fidelity` and similar knobs are model-specific: `--set input_fidelity=high`.
 
 ## 6. Check the result
@@ -109,8 +111,8 @@ the `.json` sidecars to see exactly what changed.
   specific details, then constraints. Verify that against the cookbook before quoting it.
   Parameter support (quality levels, transparency, `input_fidelity`) changes between model
   generations, so check the current model's reference.
-- **Self-hosted diffusion models (vLLM-Omni, Ollama).** Behavior depends on the model you
-  loaded. Read that model's card. Treat negation, text rendering and long prompts as untested
+- **Self-hosted diffusion models (vLLM-Omni).** Behavior depends on the model you
+  loaded. Ollama is not an option here: it has no image routes. Read that model's card. Treat negation, text rendering and long prompts as untested
   until you try them with a fixed seed.
 
 ## 8. Reporting back to the user

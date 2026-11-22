@@ -14,7 +14,7 @@ Python 3.12+. The only third-party dependency is the `openai` client library.
 Profiles (config.toml) pick the endpoint and API style:
   style = "openrouter"  POST {base_url}/images, GET {base_url}/images/models   (OpenRouter native)
   style = "openai"      POST {base_url}/images/generations and /images/edits   (OpenAI API, vLLM-Omni,
-                        Ollama experimental, and other OpenAI-compatible servers)
+                        and other OpenAI-compatible servers; Ollama has no images route)
 API keys are read from environment variables named by the profile, never from the config file.
 """
 from __future__ import annotations
@@ -845,7 +845,8 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--response-format", dest="response_format", choices=["b64_json", "url"])
     g.add_argument("--ref", action="append", help="reference image: URL or local path (repeatable)")
     g.add_argument("--mask", help="PNG mask/overlay for edits (needs --ref). OpenAI-style: transparent "
-                   "areas are edited. OpenRouter: sent as `markup`; semantics vary by model, test first.")
+                   "areas are edited. OpenRouter: sent as `markup`, where opaque pixels marked the edit "
+                   "area on gpt-image-2.6 (2 trials); few models honor it, test first.")
     g.add_argument("--no-lint", action="store_true", help="skip the prompt negation warning")
     g.add_argument("--set", action="append", metavar="KEY=VALUE",
                    help="extra request field, value parsed as JSON if possible (repeatable), "

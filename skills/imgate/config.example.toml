@@ -24,8 +24,8 @@ style       = "openrouter"
 base_url    = "https://openrouter.ai/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
 model       = "black-forest-labs/flux.2-pro"   # verify with: imgate.py models
-# ref_shape = "string"      # how input_references/markup entries are encoded. If OpenRouter rejects
-#                           # them, try "image_url" ({"type":"image_url","image_url":{"url":...}}).
+# ref_shape = "image_url"   # default: {"type":"image_url","image_url":{"url":...}} per OpenRouter docs.
+#                           # "string" sends bare URLs, which live OpenRouter rejects with HTTP 400.
 
 # Self-hosted vLLM-Omni: `vllm serve Qwen/Qwen-Image --omni --port 8000` (one model per server)
 [profiles.vllm-omni]
@@ -33,14 +33,18 @@ style    = "openai"
 base_url = "http://localhost:8000/v1"
 model    = "Qwen/Qwen-Image"
 # api_key_env = "VLLM_API_KEY"      # only if the server was started with --api-key
+# mask_field = "mask_image"         # vLLM-Omni's /v1/images/edits reads the mask from `mask_image`, not
+#                                   # OpenAI's `mask`. From its source; unverified against a live server.
 # [profiles.vllm-omni.extra]        # sent on every request (provider-specific fields)
 # num_inference_steps = 30
 
-# Ollama (image generation is experimental and model dependent)
-[profiles.ollama]
-style    = "openai"
-base_url = "http://localhost:11434/v1"
-model    = "z-image"
+# Ollama: NOT usable for image generation through imgate. Its OpenAI-compatible API has no
+# /v1/images/generations or /v1/images/edits route (checked live on Ollama 0.40.17, 2026-11-22: both
+# return 404). Kept as a comment so the profile can be enabled if a future Ollama adds the routes.
+# [profiles.ollama]
+# style    = "openai"
+# base_url = "http://localhost:11434/v1"
+# model    = "x/z-image-turbo"      # registry name; macOS only; unverified against an images route
 
 # OpenAI itself
 # [profiles.openai]
