@@ -223,6 +223,10 @@ Prompting guidance in `references/prompting.md` is adapted from the MIT-licensed
     uv sync                                  # Python 3.12 + openai + ruff
     uv run python tests/test_imgate.py       # offline tests
     uv run ruff check skills tests
+    uvx pre-commit@4.7.0 install             # ruff + known-vulnerability audit before each commit
+
+The pre-commit hook runs `uv audit` (OSV) on `uv.lock`. CI repeats it on every push and weekly, opens a
+`security` issue on a finding, and Dependabot is enabled. See `SECURITY.md`.
 
 ## More documentation
 

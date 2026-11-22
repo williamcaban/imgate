@@ -1,0 +1,47 @@
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 6 * * 1"   # weekly: new advisories appear without any commit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.4.0
+        with:
+          version: "0.13.9"   # `uv audit` is experimental: pin the uv that has it
+      - name: Audit locked dependencies against OSV
+        id: audit
+        run: |
+          set +e
+          uv audit --locked --preview-features audit-command > audit.txt 2>&1
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+          cat audit.txt
+      - name: Track findings in an issue (scheduled and main runs only)
+        if: steps.audit.outputs.code != '0' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create security --color B60205 --description "Known vulnerability in a dependency" --force
+          body="$(printf 'uv audit found known vulnerabilities (run %s/%s/actions/runs/%s).\n\n```\n%s\n```\n' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$(cat audit.txt)")"
+          n="$(gh issue list --label security --state open --search 'Known vulnerabilities in dependencies in:title' --json number --jq '.[0].number // empty')"
+          if [ -n "$n" ]; then
+            gh issue comment "$n" --body "$body"
+          else
+            gh issue create --label security --title "Known vulnerabilities in dependencies" --body "$body"
+          fi
+      - name: Fail the job if vulnerabilities were found
+        if: steps.audit.outputs.code != '0'
+        run: exit 1

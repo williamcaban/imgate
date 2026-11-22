@@ -5,6 +5,13 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor
 
 ## Unreleased
 
+### Added
+
+- Known-vulnerability scanning: a pre-commit hook (`uv audit` against OSV, plus ruff), a `security` CI workflow
+  (every push, every PR, weekly) that opens or updates a `security`-labelled issue on a finding, and
+  `.github/dependabot.yml` for `uv` and `github-actions`. `SECURITY.md` describes the tracking. No new
+  dependency: `uv audit` ships with uv (experimental in 0.13.9, so CI pins that uv).
+
 ### Changed
 
 - The refusal for a reference outside the allowed folders now lists them and says what to do, and the
