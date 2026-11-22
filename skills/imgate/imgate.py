@@ -318,6 +318,14 @@ def load_config(path: str | None = None) -> dict:
             raise ImgateError(f"Profile '{name}': ref_shape must be 'image_url' or 'string'.")
         if "extra_in_prompt" in prof and (prof["extra_in_prompt"] not in (True, False) or prof["style"] != "openai"):
             raise ImgateError(f"Profile '{name}': extra_in_prompt must be true or false, and needs style = 'openai'.")
+    env_allowed = [x.strip() for x in os.environ.get("IMGATE_MCP_ALLOWED_PROFILES", "").split(",") if x.strip()]
+    if env_allowed:
+        # One MCP connector per trust level: the environment of that connector narrows the profiles it may use.
+        unknown = [x for x in env_allowed if x not in cfg["profiles"]]
+        if unknown:
+            raise ImgateError(f"IMGATE_MCP_ALLOWED_PROFILES names unknown profile(s): {', '.join(unknown)}. "
+                              f"Available: {', '.join(cfg['profiles'])}")
+        cfg["mcp"]["allowed_profiles"] = env_allowed
     return cfg
 
 
@@ -1085,7 +1093,8 @@ MCP_INSTRUCTIONS = (
     "user asks for prompt help, call check_prompt (free) and prompt_guide for best practices. Rewrite "
     "negations as positive statements, keep the user's wording and intent, mark anything you add as a "
     "suggestion, and tell the user what you changed. Ask at most three questions (purpose and aspect "
-    "ratio, style, exact text). Confirm before costly settings (n above 1, 4K). After generating, report "
+    "ratio, style, exact text). Confirm before costly settings (n above 1, 4K). Use the default profile unless "
+    "the user names another. A profile that bills money (OpenRouter) is only for a request that names it. After generating, report "
     "the file path, final prompt, profile, model, seed and cost. Never replace a failed raster request "
     "with an SVG or HTML drawing.")
 
@@ -1124,7 +1133,8 @@ def call_tool(cfg: dict, name: str, args: dict) -> dict:
         if name == "list_presets":
             return {"content": [_text(cfg["presets"])]}
         if name == "list_profiles":
-            return {"content": [_text(profile_summary(cfg))]}
+            allowed = mcp.get("allowed_profiles") or []
+            return {"content": [_text([x for x in profile_summary(cfg) if not allowed or x["name"] in allowed])]}
         if name == "check_prompt":
             if not (args.get("prompt") or "").strip():
                 raise ImgateError("Empty prompt.")

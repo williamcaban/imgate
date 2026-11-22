@@ -7,6 +7,13 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor
 
 ### Added
 
+- `IMGATE_MCP_ALLOWED_PROFILES` (comma list) narrows the profiles an MCP server may use, per connector, and
+  `list_profiles` shows only those. An unknown name is a startup error. Used to run one connector for the free
+  local profile and another for OpenRouter, so the host's approval prompt can guard the paid one. See
+  `docs/claude-desktop.md`.
+- The MCP instructions and SKILL.md say to use the default profile and to use a billing profile only when the
+  user names it.
+
 - `sdapi` style for the Draw Things app's HTTP API server (`/sdapi/v1/txt2img` and `/img2img`). Strict: only
   `-n` (as `batch_count`), `--size` and `--seed` map, other flags are an error, and `--set` carries the app's own
   keys. A reference becomes `init_images` with width and height taken from the image (PNG or JPEG). Masks are

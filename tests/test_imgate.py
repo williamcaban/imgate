@@ -418,5 +418,24 @@ ok("hints" in by[14]["result"]["content"][0]["text"] and "Negation" in by[14]["r
 ok("pixel-identical" in by[15]["result"]["content"][0]["text"], "MCP prompt_guide section")
 ok(by[16]["result"]["isError"], "MCP prompt_guide bad section is an error")
 ok(err == "", f"nothing on stderr ({err[:100]})")
+# per-connector profile restriction through the environment
+def mcp_env(extra_env, msgs):
+    r = run("serve", inp="\n".join(json.dumps(m) for m in msgs) + "\n", env={**ENV, **extra_env})
+    return {o["id"]: o for o in (json.loads(x) for x in r.stdout.splitlines())}, r
+init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}}
+by2, _ = mcp_env({"IMGATE_MCP_ALLOWED_PROFILES": "vllm", "IMGATE_PROFILE": "vllm"}, [
+    init, call(2, "list_profiles", {}), call(3, "generate_image", {"prompt": "local", "seed": 1}),
+    call(4, "generate_image", {"prompt": "paid", "profile": "openrouter"}), call(5, "list_image_models", {"profile": "openrouter"})])
+names = [x["name"] for x in json.loads(by2[2]["result"]["content"][0]["text"])]
+ok(names == ["vllm"], f"env-restricted connector lists only its profile ({names})")
+ok(not by2[3]["result"].get("isError") and json.loads(by2[3]["result"]["content"][0]["text"])["profile"] == "vllm", "default profile from IMGATE_PROFILE works")
+ok(by2[4]["result"]["isError"] and "allowed_profiles" in by2[4]["result"]["content"][0]["text"], "a profile outside the env allow-list is refused, no API call")
+ok(by2[5]["result"]["isError"] and "allowed_profiles" in by2[5]["result"]["content"][0]["text"], "list_image_models is refused for a profile outside the allow-list")
+by4, _ = mcp_env({"IMGATE_MCP_ALLOWED_PROFILES": "openrouter"}, [init, call(2, "generate_image", {"prompt": "x", "preset": "local"})])
+ok(by4[2]["result"].get("isError") and "allowed_profiles" in by4[2]["result"]["content"][0]["text"], "a preset that pins a profile outside the allow-list is refused")
+_, rbad = mcp_env({"IMGATE_MCP_ALLOWED_PROFILES": "vllm,nope"}, [init])
+ok(rbad.returncode == 1 and "unknown profile(s): nope" in rbad.stderr, "unknown name in IMGATE_MCP_ALLOWED_PROFILES is a startup error")
+by3, _ = mcp_env({"IMGATE_MCP_ALLOWED_PROFILES": ""}, [init, call(2, "list_profiles", {})])
+ok(len(json.loads(by3[2]["result"]["content"][0]["text"])) >= 5, "empty IMGATE_MCP_ALLOWED_PROFILES changes nothing")
 print("FAILED" if ok.bad else "ALL PASSED", ok.bad)
 sys.exit(1 if ok.bad else 0)

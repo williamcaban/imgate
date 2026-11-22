@@ -10,6 +10,7 @@ Run the bundled script with the Python 3.12+ environment that has the `openai` p
 ## Rules
 
 - API keys come only from environment variables named by the profile (`api_key_env`). Never ask the user to paste a key into chat, never print it, never write it into files. Self-hosted profiles usually need no key.
+- Use the default profile. A profile that bills money (`openrouter`) is only for a request that names it, and needs the user's explicit OK in that turn even for a single image. Never switch to it because the default failed.
 - Confirm with the user before spending money: `-n` above 1, `--resolution 4K`, or high quality on an expensive paid model. Self-hosted profiles cost GPU time, not money, but large `n` still takes a while.
 - Before writing or revising a prompt, read `references/prompting.md` (spec fields, use-case categories, edit discipline, negation handling).
 - Rewrite negations as positive statements ("one open Bible, alone in the manger", not "no other books"). The tool prints a `warning:` when a prompt contains negation words (quoted text is ignored; `--no-lint` silences it). If you see the warning, or the user's prompt has negations, rewrite positively, tell the user what you changed, and use `--set negative_prompt=...` only on servers known to accept it.
