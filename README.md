@@ -44,7 +44,7 @@ lists them, `-P name` selects one, and `default_profile` or `IMGATE_PROFILE` set
   (`only`, `order`, `zdr`, `data_collection`, `allow_fallbacks`) applies to this style only.
 - `openai`: `POST /images/generations`, `POST /images/edits` and `GET /models` through the openai
   client's `images` methods. Use it for vLLM-Omni, OpenAI and other
-  OpenAI-compatible servers. Ollama is not one of them for images (see below).
+  OpenAI-compatible servers.
 
 **One request model, routed per style.** You set parameters once (`-n`, `--size`, `--seed`,
 `--aspect-ratio`, `--set key=value`, ...). For `openai` style, imgate reads the installed SDK's
@@ -71,13 +71,13 @@ different endpoints are therefore comparable.
 
 ### What differs by endpoint
 
-| | OpenRouter | vLLM-Omni | Ollama | OpenAI |
-|---|---|---|---|---|
-| imgate style | `openrouter` | `openai` | none: no image routes | `openai` |
-| Models | many, per request | one per server | n/a | per request |
-| Cost reporting | `usage.cost` (seen live) | none | n/a | varies |
-| Image edits | `input_references` objects, optional `markup` overlay | `/images/edits` on edit-capable models; mask field is `mask_image` (`mask_field`) | none | `/images/edits`, transparent mask areas are edited |
-| Status | checked live 2026-11-22 | read from docs and source, not live-tested | `/v1/images/*` returns 404 | not tested |
+| | OpenRouter | vLLM-Omni | OpenAI |
+|---|---|---|---|
+| imgate style | `openrouter` | `openai` | `openai` |
+| Models | many, per request | one per server | per request |
+| Cost reporting | `usage.cost` (seen live) | none | varies |
+| Image edits | `input_references` objects, optional `markup` overlay | `/images/edits` on edit-capable models; mask field is `mask_image` (`mask_field`) | `/images/edits`, transparent mask areas are edited |
+| Status | checked live 2026-11-22 | read from docs and source, not live-tested | not tested |
 
 Support differs per model and server. Check the model's docs, or `imgate models -v` on OpenRouter, before
 relying on a parameter. `markup` is the exception: no OpenRouter endpoint lists it in `supported_parameters`.
@@ -98,13 +98,6 @@ Checked live (OpenRouter, model `black-forest-labs/flux-3-image-klein` unless no
   (a mask with the left half opaque put the object on the left, the mirrored mask put it on the right). That
   is the opposite of OpenAI's `mask`. The model re-renders the whole picture, so it is guidance, not a
   pixel-exact inpaint. Two trials on one model is not a convention.
-- Ollama 0.40.17: `POST /v1/images/generations` and `/v1/images/edits` return a plain-text 404 (the same
-  fake model on `/v1/chat/completions` returns a JSON error, so the server is up). Ollama's source on `main`
-  registers no such routes and its OpenAI-compatibility page lists none. Ollama's registry has image models
-  (`x/z-image-turbo`, `x/flux2-klein`), and their registry page says they work on macOS, but they do not run:
-  `ollama run x/flux2-klein` fails with `Error: image generation models are not currently supported` (reported
-  on a Mac, 2026-11-22). That is the same string Ollama's `/api/generate` handler returns for image-capability
-  models in its source on `main`, and the images routes do not exist either.
 
 Taken from primary sources, not tested live:
 
@@ -122,7 +115,7 @@ Unverified:
   source declares it without `Form()`), and its mask polarity: the docs say white areas are inpainted, a
   code comment says the alpha channel matters. `mask_field = "mask_image"` is untested.
 - `markup` polarity on any other model, and which models honor it.
-- The OpenAI endpoint, and any Ollama version newer than 0.40.17.
+- The OpenAI endpoint.
 
 ## Install (macOS example)
 

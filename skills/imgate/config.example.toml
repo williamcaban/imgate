@@ -38,14 +38,6 @@ model    = "Qwen/Qwen-Image"
 # [profiles.vllm-omni.extra]        # sent on every request (provider-specific fields)
 # num_inference_steps = 30
 
-# Ollama: NOT usable for image generation through imgate. Its OpenAI-compatible API has no
-# /v1/images/generations or /v1/images/edits route (checked live on Ollama 0.40.17, 2026-11-22: both
-# return 404). Kept as a comment so the profile can be enabled if a future Ollama adds the routes.
-# [profiles.ollama]
-# style    = "openai"
-# base_url = "http://localhost:11434/v1"
-# model    = "x/z-image-turbo"      # registry name; `ollama run` on it fails: image models unsupported
-
 # OpenAI itself
 # [profiles.openai]
 # style       = "openai"

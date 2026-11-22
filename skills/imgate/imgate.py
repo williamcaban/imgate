@@ -14,7 +14,7 @@ Python 3.12+. The only third-party dependency is the `openai` client library.
 Profiles (config.toml) pick the endpoint and API style:
   style = "openrouter"  POST {base_url}/images, GET {base_url}/images/models   (OpenRouter native)
   style = "openai"      POST {base_url}/images/generations and /images/edits   (OpenAI API, vLLM-Omni,
-                        and other OpenAI-compatible servers; Ollama has no images route)
+                        and other OpenAI-compatible servers)
 API keys are read from environment variables named by the profile, never from the config file.
 """
 from __future__ import annotations
@@ -112,14 +112,6 @@ model    = "Qwen/Qwen-Image"
 #                                   # OpenAI's `mask`. From its source; unverified against a live server.
 # [profiles.vllm-omni.extra]        # sent on every request (provider-specific fields)
 # num_inference_steps = 30
-
-# Ollama: NOT usable for image generation through imgate. Its OpenAI-compatible API has no
-# /v1/images/generations or /v1/images/edits route (checked live on Ollama 0.40.17, 2026-11-22: both
-# return 404). Kept as a comment so the profile can be enabled if a future Ollama adds the routes.
-# [profiles.ollama]
-# style    = "openai"
-# base_url = "http://localhost:11434/v1"
-# model    = "x/z-image-turbo"      # registry name; `ollama run` on it fails: image models unsupported
 
 # OpenAI itself
 # [profiles.openai]
@@ -356,11 +348,9 @@ def wrap_api_errors(fn, prof: dict, timeout: float):
             err = e.body.get("error", e.body)
             msg = err.get("message", msg) if isinstance(err, dict) else str(err)
         elif e.status_code == 404 and "/images" in e.request.url.path:
-            # A plain-text 404 (no JSON error) means the route itself is missing. Ollama answers this way
-            # for /v1/images/generations and /v1/images/edits (checked on 0.40.17, 2026-11-22).
+            # A plain-text 404 (no JSON error) means the route itself is missing on that server.
             msg = (f"{e.request.url.path} does not exist on this server. It does not implement the OpenAI "
-                   "images API (Ollama, for one, has no /v1/images/* routes). Use an endpoint that does: "
-                   "OpenRouter, vLLM-Omni, OpenAI.")
+                   "images API. Use an endpoint that does: OpenRouter, vLLM-Omni, OpenAI.")
         raise ImgateError(redact(f"HTTP {e.status_code} from {prof['name']}: {str(msg)[:800]}")) from None
 
 

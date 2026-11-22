@@ -112,7 +112,7 @@ the `.json` sidecars to see exactly what changed.
   Parameter support (quality levels, transparency, `input_fidelity`) changes between model
   generations, so check the current model's reference.
 - **Self-hosted diffusion models (vLLM-Omni).** Behavior depends on the model you
-  loaded. Ollama is not an option here: it has no image routes. Read that model's card. Treat negation, text rendering and long prompts as untested
+  loaded. Read that model's card. Treat negation, text rendering and long prompts as untested
   until you try them with a fixed seed.
 
 ## 8. Reporting back to the user

@@ -39,7 +39,7 @@ class H(BaseHTTPRequestHandler):
     def do_POST(self):
         raw = self.rfile.read(int(self.headers["Content-Length"]))
         SEEN.append((self.path, {k.lower(): v for k, v in self.headers.items()}, raw))
-        if self.path.startswith("/noimg/"):  # Ollama (Gin) answers a missing route with plain text
+        if self.path.startswith("/noimg/"):  # a server without image routes answers with plain text
             b = b"404 page not found"
             self.send_response(404); self.send_header("Content-Type", "text/plain")
             self.send_header("Content-Length", str(len(b))); self.end_headers(); return self.wfile.write(b)
@@ -167,7 +167,7 @@ r = run("generate", "FAIL502 retry me"); ok(r.returncode == 0, f"502 retried by 
 r = run("generate", "BAD thing"); ok(r.returncode == 1 and KEY not in r.stderr and "unsupported parameter" in r.stderr, "400 surfaced, key redacted")
 r = run("generate", "x", env={**ENV, "OPENROUTER_API_KEY": ""}); ok(r.returncode == 1 and "OPENROUTER_API_KEY" in r.stderr, "missing key message")
 
-# ---- OpenAI style (vLLM-Omni / Ollama shape)
+# ---- OpenAI style (vLLM-Omni shape)
 r = run("generate", "a cat", "-P", "vllm", "--size", "512x512", "--seed", "42", "--aspect-ratio", "16:9",
         "-n", "2", "--set", "num_inference_steps=30", "--set", "guidance_scale=4.5")
 ok(r.returncode == 0 and len(r.stdout.split()) == 2, f"vllm generate n=2 ({r.stderr.strip()[:200]})")
@@ -185,7 +185,7 @@ r = run("generate", "a cat", "-P", "noimg")
 ok(r.returncode == 1 and "/noimg/v1/images/generations does not exist" in r.stderr and "Error code: 404" not in r.stderr, "plain-text 404 explains the missing images route")
 r = run("generate", "a cat", "-P", "noimg", "--ref", str(ref))
 ok(r.returncode == 1 and "/images/edits does not exist" in r.stderr, "same hint for the edits route")
-r = run("init", "--print"); ok("[profiles.ollama]" not in r.stdout.replace("# [profiles.ollama]", ""), "example config no longer enables the Ollama profile")
+r = run("init", "--print"); ok("ollama" not in r.stdout.lower(), "example config has no stray profile for a server without image routes")
 r = run("models", "-P", "vllm"); ok("Qwen/Qwen-Image" in r.stdout, "openai-style models list")
 r = run("generate", "x", "-P", "vllm", "--zdr"); ok(r.returncode == 1 and "style=openrouter" in r.stderr, "provider routing rejected on openai style")
 r = run("generate", "x", "-P", "lan"); ok(r.returncode == 1 and "plain http" in r.stderr and "lan-secret" not in r.stderr, "key over non-loopback http refused")

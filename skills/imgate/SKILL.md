@@ -36,7 +36,7 @@ A profile picks the endpoint and API style. `profiles` lists them, `-P NAME` sel
 | style | endpoints | use for |
 |---|---|---|
 | `openrouter` | `POST /images`, `GET /images/models` | OpenRouter (native API) |
-| `openai` | `POST /images/generations`, `/images/edits`, `GET /models` | OpenAI, vLLM-Omni, other OpenAI-compatible servers. Not Ollama: it has no `/v1/images/*` routes (404) |
+| `openai` | `POST /images/generations`, `/images/edits`, `GET /models` | OpenAI, vLLM-Omni, other OpenAI-compatible servers. |
 
 ## Commands
 

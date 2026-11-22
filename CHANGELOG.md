@@ -5,7 +5,7 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor
 
 ## 0.5.0 - 2026-11-22
 
-First release checked against a live OpenRouter endpoint and a live Ollama server. The details are in the
+First release checked against a live OpenRouter endpoint. The details are in the
 README under "Verification status".
 
 ### Fixed
@@ -29,10 +29,8 @@ README under "Verification status".
 - **Behavior change:** the default `ref_shape` is now `image_url`. Set `ref_shape = "string"` on a profile to
   send bare URLs again.
 - The dry-run view and sidecars show reference and markup entries in the same shape that is sent.
-- The built-in example config no longer enables an `ollama` profile. Ollama has no `/v1/images/*` routes
-  (404 on 0.40.17; `ollama run x/flux2-klein` also fails with "image generation models are not currently
-  supported"), and its old default model name `z-image` is not an Ollama registry name. A config written
-  by 0.4.0 `init` still has that profile; delete it.
+- Removed the example `ollama` profile: that server has no image routes. A config written by 0.4.0 `init`
+  still has it; delete it.
 - `ruff check` passes with ruff's default rules; the script is marked executable.
 - README: dated lists of what was verified live, what comes from primary sources, and what is unverified.
   The MCP registration command no longer uses `-e OPENROUTER_API_KEY=$OPENROUTER_API_KEY`, which wrote the key
