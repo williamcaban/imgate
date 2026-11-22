@@ -68,6 +68,8 @@ For `openai`-style profiles, `--size`, `-n`, `--quality`, `--format`, `--backgro
 
 ## Edits and masks
 
+Through MCP, a reference must be a file inside the output folder or `[mcp].reference_dirs`, or an https URL. An image the user attached in the chat is not on disk, so ask for a path, or have them copy the file into the output folder. On the Draw Things app, leave `strength` unset when the app's model is an instruction-edit model (Qwen-Image, FLUX.2 klein): the app default of 1 followed the instruction, while `--set strength=0.3` and `0.8` kept the source almost unchanged. Lower `strength` only for a classic img2img model, where it is the amount of change.
+
 State what must stay unchanged, make one change per pass, and label each input image's role. `--mask` needs a PNG the same pixel size as the first `--ref`. On OpenAI-style servers transparent mask areas are edited (OpenAI's documented convention). vLLM-Omni names the field `mask_image`, so set `mask_field = "mask_image"` on that profile (untested live). On OpenRouter the mask is sent as `markup`: only some models honor it (no endpoint lists it in `supported_parameters`), and on `openai/gpt-image-2.6-sunburst` opaque pixels marked the edit area in 2 of 2 trials. That is guidance, not an exact inpaint, so test with a trivial edit first.
 
 ## Output

@@ -446,7 +446,9 @@ def check_ref(cfg: dict, ref: str, restrict: bool) -> str:
     if restrict:
         allowed = [Path(d).expanduser().resolve() for d in [cfg["output_dir"], *cfg["mcp"]["reference_dirs"]]]
         if not any(p == d or d in p.parents for d in allowed):
-            raise ImgateError(f"Reference path not allowed: {p}. Add its folder to [mcp].reference_dirs.")
+            where = ", ".join(str(d) for d in allowed)
+            raise ImgateError(f"Reference path not allowed: {p}. The tool may read references only from: {where}. "
+                              "Copy the image into one of those folders, or add its folder to [mcp].reference_dirs.")
     if not p.is_file():
         raise ImgateError(f"Reference file not found: {p}")
     if p.stat().st_size > MAX_REF_BYTES:
@@ -1080,7 +1082,7 @@ _GEN_PROPS = {
     "seed": {"type": "integer", "description": "For reproducibility where the model supports it."},
     "references": {"type": "array", "items": {"type": "string"},
                    "description": "Reference images for image-to-image: https URLs or absolute local paths "
-                   "inside an allowed folder."},
+                   "inside the output folder or [mcp].reference_dirs (a file attached in the chat is not on disk)."},
     "mask": {"type": "string", "description": "PNG mask/overlay for edits (requires references). Same "
              "dimensions as the first reference. Path rules as for references."},
     "subdir": {"type": "string", "description": "Subfolder name under the output dir."},

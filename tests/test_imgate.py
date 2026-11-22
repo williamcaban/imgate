@@ -413,6 +413,7 @@ ok(KEY not in json.dumps(by[9]) and "lan" in json.dumps(by[9]), "list_profiles, 
 ok(by[10]["result"]["isError"] and "plain http" in by[10]["result"]["content"][0]["text"], "MCP surfaces key-over-http refusal")
 ok("warnings" in json.loads(by[11]["result"]["content"][0]["text"]), "MCP surfaces lint warnings")
 ok(by[12]["result"].get("isError") and "not allowed" in by[12]["result"]["content"][0]["text"], "MCP reference outside allowed dirs refused (tmp is not output_dir)")
+ok("may read references only from" in by[12]["result"]["content"][0]["text"] and "reference_dirs" in by[12]["result"]["content"][0]["text"], "reference refusal names the allowed folders")
 ok(by[13]["result"]["isError"] and "not allowed" in by[13]["result"]["content"][0]["text"], "MCP mask path guard")
 ok("hints" in by[14]["result"]["content"][0]["text"] and "Negation" in by[14]["result"]["content"][0]["text"], "MCP check_prompt")
 ok("pixel-identical" in by[15]["result"]["content"][0]["text"], "MCP prompt_guide section")

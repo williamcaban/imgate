@@ -105,7 +105,11 @@ Checked live (OpenRouter, model `black-forest-labs/flux-3-image-klein` unless no
 Checked live against the Draw Things app (HTTP API server on `127.0.0.1:7860`, FLUX.2 klein 4B q8 selected in
 the app, `sdapi` style):
 
-- `txt2img`, `img2img` (a reference edit), `-n 2` (two images) and `--set steps=6` work. About 19 s for a
+- `txt2img`, `img2img` (a reference edit), `-n 2` (two images) and `--set steps=6` work. Image-to-image was
+  rechecked with Qwen-Image 2.1 turbo selected in the app, through the MCP server as well as the CLI: the
+  edit followed the prompt and kept the subject. `--set strength=0.3` and `0.8` are sent and change the
+  result, but on that model they kept the source nearly unchanged, so leave `strength` unset for
+  instruction-edit models. About 19 s for a
   768x768 text-to-image, 37 s for an edit, 55 s for two images at 6 steps.
 - Requests start from the app's current settings and override only the fields sent. Of 87 settings, only
   `prompt` changed in the app afterwards: **an API call overwrites the app's prompt field.** Seed, size and
@@ -202,7 +206,8 @@ Add `"IMGATE_CONFIG": "/Users/YOU/.config/imgate/config.toml"` to `env` if you k
 ## MCP guards (`[mcp]` in config)
 
 `allowed_profiles`, `allowed_models`, `max_n` limit cost and reach. The tool cannot pick an output directory, and can
-read reference images only from `output_dir` and `reference_dirs`.
+read reference images only from `output_dir` and `reference_dirs`. An image attached in the chat is not a file the
+tool can read; see `docs/claude-desktop.md`, "Image to image".
 
 ## Credits
 

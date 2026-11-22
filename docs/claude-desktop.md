@@ -49,6 +49,17 @@ Desktop does not inherit your shell, so use absolute paths.
       ~/.venvs/imgate/bin/python ~/.claude/skills/imgate/imgate.py serve
     claude mcp add imgate-openrouter -s user -- ~/.local/bin/imgate-mcp-openrouter
 
+## Image to image
+
+Pass the input image in `references`. The MCP tool reads local files only from `output_dir` (default `~/imgate-output`, subfolders included) and `[mcp].reference_dirs`, so that a connector cannot be asked to read `~/.ssh`. Two ways to give it an input:
+
+- Copy the file into `~/imgate-output/` (no config change). Pictures imgate made are already there, so "change the sky in the last one" works as is.
+- Or add a folder you choose: `reference_dirs = ["~/Pictures/imgate-inputs"]` under `[mcp]`.
+
+An image dragged into the chat window is not a file on disk for the tool, so it cannot be used as a reference. Whether Desktop exposes attachments to MCP servers is unverified. A path outside the allowed folders gives an error that lists them.
+
+Draw Things notes (checked live 2026-11-22 with Qwen-Image 2.1 turbo selected in the app): the reference is sent as `init_images` and its size becomes the output size. Do not set `strength` for an instruction-edit model: the app default of 1 changed the sky as asked and kept the boat, while 0.3 and 0.8 mostly returned the source.
+
 ## What is and is not enforced
 
 - Enforced by imgate: a connector cannot reach a profile outside its list, whatever the model asks for.

@@ -5,6 +5,13 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: a minor
 
 ## Unreleased
 
+### Changed
+
+- The refusal for a reference outside the allowed folders now lists them and says what to do, and the
+  `references` tool description says an image attached in the chat is not on disk.
+- Docs: image-to-image through Claude Desktop (where input files must live) and `strength` with
+  instruction-edit models on Draw Things. Checked live, including through the MCP server.
+
 ### Added
 
 - `IMGATE_MCP_ALLOWED_PROFILES` (comma list) narrows the profiles an MCP server may use, per connector, and
