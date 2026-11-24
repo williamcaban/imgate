@@ -25,6 +25,6 @@ jobs:
       issues: write
       pull-requests: write
       contents: read
-    uses: interplay-adversarial/.github/.github/workflows/pr-agent.yml@ef1728466aebd7669ce31ea441dd3fefa34aa273   # shared workflow, bumped by Dependabot
+    uses: interplay-adversarial/.github/.github/workflows/pr-agent.yml@662458bc268eb7ba144fd4cb3e6456eac8df4214   # shared workflow, bumped by Dependabot
     secrets:
       MAAS_API_KEY: ${{ secrets.MAAS_API_KEY }}
